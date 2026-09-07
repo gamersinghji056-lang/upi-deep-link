@@ -3,48 +3,45 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>UPI Checkout v7</title>
+<title>WPAY UPI Link Generator</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#f7f9fc;font-family:Arial,sans-serif}.wrap{width:min(940px,calc(100% - 24px));margin:auto;padding:28px 0 50px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.card{background:#121a2b;border:1px solid #2a3852;border-radius:18px;padding:18px}h1{margin:0 0 8px}.muted{color:#9aa8be}.ok{color:#65dda5}.warn{color:#ffd166}.err{color:#ff8391}.msg{font-size:13px;margin-top:9px}label{display:block;margin:14px 0 6px;font-size:13px;font-weight:800}input,textarea,select{width:100%;padding:12px;border-radius:12px;border:1px solid #30415f;background:#0b1220;color:#fff;font-size:16px}textarea{min-height:100px}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.btn{border:0;border-radius:12px;padding:13px 16px;font-weight:800;cursor:pointer}.primary{width:100%;margin-top:16px;background:#6877ff;color:#fff}.secondary{background:#1d2941;color:#fff}.result{display:none}.debug{margin-top:12px;padding:11px;border-radius:12px;border:1px solid #263650;background:#0b1220;color:#bac7dc;font:12px monospace;white-space:pre-wrap;word-break:break-all}.profile{padding:10px 12px;border-radius:12px;background:#0b1220;border:1px solid #263650;margin-top:10px}@media(max-width:760px){.grid,.row{grid-template-columns:1fr}}
+*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#f6f8fc;font-family:Arial,sans-serif}.wrap{width:min(920px,calc(100% - 24px));margin:0 auto;padding:28px 0 50px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.card{background:#121a2b;border:1px solid #2a3852;border-radius:18px;padding:18px}h1{margin:0 0 8px}.muted{color:#9aa8be}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}label{display:block;margin:14px 0 6px;font-size:13px;font-weight:700}input,textarea,select{width:100%;background:#0b1220;color:#fff;border:1px solid #30415f;border-radius:12px;padding:12px;font-size:16px}textarea{min-height:96px}.btn{border:0;border-radius:12px;padding:13px 16px;font-weight:800;cursor:pointer}.primary{width:100%;margin-top:16px;background:#6977ff;color:#fff}.secondary{background:#1d2941;color:#fff}.msg{margin-top:10px;font-size:13px}.ok{color:#63dea5}.err{color:#ff8290}.result{display:none}.debug{margin-top:12px;background:#0b1220;border:1px solid #263650;border-radius:12px;padding:10px;font:12px monospace;word-break:break-all;color:#bac7dc;white-space:pre-wrap}.short{font-size:18px;font-weight:800}@media(max-width:760px){.grid{grid-template-columns:1fr}.row{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <main class="wrap">
-<h1>UPI Checkout v7</h1>
-<p class="muted">Exact-first static QR compatibility. No generated MCC, URL, mode, orgid or transaction reference.</p>
+<h1>WPAY UPI Link Generator</h1>
+<p class="muted">Creates clean short checkout links like <strong>pay.wtron.org/pay/WPxxxxxxxx</strong>.</p>
 <section class="grid">
 <form id="form" class="card">
-<label>Upload the same UPI QR that succeeds on direct scan</label>
+<label>Upload merchant UPI QR</label>
 <input id="qrFile" type="file" accept="image/*">
-<div id="qrMsg" class="msg muted">Recommended for this test.</div>
+<div id="qrMsg" class="msg muted">Upload the same QR you want to use for payment.</div>
 <label>UPI ID or full upi://pay URI</label>
 <textarea id="upiInput" placeholder="merchant@bank or upi://pay?pa=merchant@bank&pn=Merchant"></textarea>
 <div class="row">
 <div><label>Payee name</label><input id="pn" placeholder="Merchant"></div>
 <div><label>Amount INR</label><input id="am" inputmode="decimal" placeholder="10.00"></div>
 </div>
-<label>Merchant QR profile</label>
+<label>Payment profile</label>
 <select id="profile">
-<option value="scan" selected>Scan-equivalent — add amount only if missing</option>
-<option value="exact">Exact QR — modify nothing</option>
-<option value="standard">Standard intent — add missing amount + INR currency only</option>
+<option value="scan" selected>Scan-equivalent (recommended)</option>
+<option value="exact">Exact QR (no modification)</option>
+<option value="standard">Standard UPI intent</option>
 </select>
-<div id="profileHelp" class="profile muted">Best first test: same QR, only the amount the customer would type after scanning is added.</div>
-<label>Payment note (manual VPA only, optional)</label>
+<label>Payment note (manual VPA only)</label>
 <input id="tn" maxlength="80" placeholder="Payment">
-<button class="btn primary" type="submit">Create Checkout Link</button>
+<button class="btn primary" id="createBtn" type="submit">Create Short Payment Link</button>
 <div id="msg" class="msg"></div>
 </form>
 <section class="card">
-<h3>Detected QR</h3>
-<div id="details" class="muted">Upload or paste a QR URI.</div>
-<h3 style="margin-top:22px">Generated checkout</h3>
-<div id="empty" class="muted">No checkout created yet.</div>
+<h3>Generated link</h3>
+<div id="empty" class="muted">No payment link created yet.</div>
 <div id="result" class="result">
-<p><strong id="summary"></strong></p>
+<p class="short" id="paymentId"></p>
 <input id="checkout" readonly>
 <div style="display:flex;gap:8px;margin-top:10px"><button id="copy" type="button" class="btn secondary">Copy</button><button id="open" type="button" class="btn secondary">Open</button></div>
-<div id="debug" class="debug"></div>
+<div class="debug" id="debug"></div>
 </div>
 </section>
 </section>
@@ -52,24 +49,14 @@
 <script src="/vendor/html5-qrcode/html5-qrcode.min.js"></script>
 <script>
 (function(){
-const $=id=>document.getElementById(id),qrFile=$("qrFile"),qrMsg=$("qrMsg"),upiInput=$("upiInput"),pn=$("pn"),am=$("am"),tn=$("tn"),profile=$("profile"),form=$("form"),msg=$("msg"),details=$("details"),result=$("result"),empty=$("empty"),checkout=$("checkout"),debug=$("debug");
-function parse(raw){raw=(raw||"").trim();if(!/^upi:\/\/pay\?/i.test(raw))return null;try{const u=new URL(raw);if(u.protocol!=="upi:"||u.hostname!=="pay")return null;const get=k=>(u.searchParams.get(k)||"").trim();const keys=[];u.searchParams.forEach((v,k)=>keys.push(k));return{pa:get("pa"),pn:get("pn"),am:get("am"),cu:get("cu"),tr:get("tr"),mc:get("mc"),mode:get("mode"),orgid:get("orgid"),url:get("url"),signed:keys.some(k=>k.toLowerCase()==="sign"),keys};}catch(_){return null}}
+const $=id=>document.getElementById(id);const qrFile=$("qrFile"),qrMsg=$("qrMsg"),upiInput=$("upiInput"),pn=$("pn"),am=$("am"),tn=$("tn"),profile=$("profile"),form=$("form"),msg=$("msg"),result=$("result"),empty=$("empty"),checkout=$("checkout"),debug=$("debug"),createBtn=$("createBtn");
 function isVpa(v){return /^[^\s@]+@[^\s@]+$/.test((v||"").trim())}
-function has(raw,key){const p=parse(raw);return !!(p&&p.keys.some(k=>k.toLowerCase()===key.toLowerCase()))}
-function appendRaw(raw,key,value){const h=raw.indexOf("#"),base=h>=0?raw.slice(0,h):raw,hash=h>=0?raw.slice(h):"",sep=base.includes("?")?(base.endsWith("?")||base.endsWith("&")?"":"&"):"?";return base+sep+encodeURIComponent(key)+"="+encodeURIComponent(value)+hash}
-function manual(pa,name,amount,note){const p=new URLSearchParams();p.set("pa",pa);p.set("pn",name||"UPI Payment");p.set("am",Number(amount).toFixed(2));p.set("cu","INR");if(note)p.set("tn",note);return"upi://pay?"+p.toString()}
-function b64u(str){const bytes=new TextEncoder().encode(str);let b="";for(const x of bytes)b+=String.fromCharCode(x);return btoa(b).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"")}
-function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function render(){const p=parse(upiInput.value);if(!p){details.className="muted";details.textContent="Upload or paste a QR URI.";return}details.className="";details.innerHTML="<div class='profile'><b>pa</b>: "+esc(p.pa||"missing")+"<br><b>pn</b>: "+esc(p.pn||"missing")+"<br><b>am</b>: "+esc(p.am||"missing")+"<br><b>cu</b>: "+esc(p.cu||"missing")+"<br><b>tr</b>: "+esc(p.tr||"missing")+"<br><b>mc</b>: "+esc(p.mc||"missing")+"<br><b>mode</b>: "+esc(p.mode||"missing")+"<br><b>orgid</b>: "+esc(p.orgid||"missing")+"<br><b>sign</b>: "+(p.signed?"present":"not present")+"</div>"}
-upiInput.addEventListener("input",render);
-profile.addEventListener("change",()=>{$("profileHelp").textContent=profile.value==="exact"?"Uses the decoded QR string byte-for-byte. Amount will stay editable in the UPI app if the QR itself has no amount.":profile.value==="standard"?"Preserves the QR and adds only missing am and cu=INR. No tr/MCC/URL/mode/orgid is generated.":"Preserves the QR and adds only the amount if the QR has no amount. This is closest to direct static-QR scan behavior."});
-qrFile.addEventListener("change",async()=>{const f=qrFile.files&&qrFile.files[0];if(!f)return;qrMsg.className="msg muted";qrMsg.textContent="Reading QR...";try{const hidden=document.getElementById("qr-hidden")||document.body.appendChild(Object.assign(document.createElement("div"),{id:"qr-hidden"}));hidden.style.display="none";const scanner=new Html5Qrcode("qr-hidden"),decoded=(await scanner.scanFile(f,true)).trim(),p=parse(decoded);if(!p||!p.pa)throw new Error();upiInput.value=decoded;if(p.pn)pn.value=p.pn;if(p.am)am.value=p.am;render();qrMsg.className=p.signed?"msg warn":"msg ok";qrMsg.textContent=p.signed?"Signed QR detected. Only Exact QR profile is safe.":"QR decoded. No merchant fields will be invented."}catch(_){qrMsg.className="msg err";qrMsg.textContent="Could not read a standard UPI QR."}});
-form.addEventListener("submit",e=>{e.preventDefault();msg.textContent="";const raw=upiInput.value.trim(),p=parse(raw),amount=Number(am.value.trim());let finalUri="",source="manual",label="",displayPa="",displayAmount=amount,changes=[];
-if(p){if(!isVpa(p.pa)){msg.className="msg err";msg.textContent="Invalid VPA inside QR.";return}source="merchant";displayPa=p.pa;const qrAmount=Number(p.am||"0");if(p.signed&&profile.value!=="exact"){msg.className="msg err";msg.textContent="Signed QR cannot be modified. Select Exact QR.";return}finalUri=raw;if(profile.value==="exact"){label="EXACT QR: zero modifications";displayAmount=Number.isFinite(qrAmount)&&qrAmount>0?qrAmount:0}else{if(Number.isFinite(qrAmount)&&qrAmount>0){displayAmount=qrAmount;if(Number.isFinite(amount)&&amount>0&&Math.abs(amount-qrAmount)>0.0001){msg.className="msg err";msg.textContent="QR already has a fixed amount; it will not be overwritten.";return}}else{if(!Number.isFinite(amount)||amount<=0){msg.className="msg err";msg.textContent="Enter the amount.";return}finalUri=appendRaw(finalUri,"am",amount.toFixed(2));displayAmount=amount;changes.push("am")}
-if(profile.value==="standard"&&!has(finalUri,"cu")){finalUri=appendRaw(finalUri,"cu","INR");changes.push("cu")}label=(profile.value==="scan"?"SCAN-EQUIVALENT":"STANDARD INTENT")+": added "+(changes.length?changes.join(", "):"nothing")+"; no tr/mc/url/mode/orgid generated"}}
-else{if(!isVpa(raw)){msg.className="msg err";msg.textContent="Enter a valid UPI ID or full QR URI.";return}if(!Number.isFinite(amount)||amount<=0){msg.className="msg err";msg.textContent="Enter a valid amount.";return}displayPa=raw;finalUri=manual(raw,(pn.value.trim()||"UPI Payment").slice(0,60),amount,(tn.value.trim()||"").slice(0,80));label="MANUAL VPA: standard pa/pn/am/cu"}
-const q=new URLSearchParams();q.set("payload",b64u(finalUri));q.set("source",source);q.set("profile",profile.value);const link=location.origin+"/pay?"+q.toString();checkout.value=link;$("summary").textContent=(displayAmount>0?"INR "+displayAmount.toFixed(2)+" -> ":"")+displayPa;debug.textContent=label+"\n\nFinal URI:\n"+finalUri;empty.style.display="none";result.style.display="block";msg.className="msg ok";msg.textContent="Checkout created."});
-$("copy").onclick=async()=>navigator.clipboard.writeText(checkout.value);$("open").onclick=()=>checkout.value&&window.open(checkout.value,"_blank","noopener");
+function parseUpi(raw){try{const u=new URL((raw||"").trim());if(u.protocol!=="upi:"||u.hostname!=="pay")return null;return{pa:(u.searchParams.get("pa")||"").trim(),pn:(u.searchParams.get("pn")||"").trim(),am:(u.searchParams.get("am")||"").trim(),tn:(u.searchParams.get("tn")||"").trim()}}catch{return null}}
+function buildManual(pa,name,amount,note){const p=new URLSearchParams();p.set("pa",pa);p.set("pn",name||"UPI Payment");p.set("am",Number(amount).toFixed(2));p.set("cu","INR");if(note)p.set("tn",note);return"upi://pay?"+p.toString()}
+qrFile.addEventListener("change",async()=>{const file=qrFile.files&&qrFile.files[0];if(!file)return;qrMsg.className="msg muted";qrMsg.textContent="Reading QR...";try{const hidden=document.getElementById("qr-hidden")||document.body.appendChild(Object.assign(document.createElement("div"),{id:"qr-hidden"}));hidden.style.display="none";const scanner=new Html5Qrcode("qr-hidden");const decoded=(await scanner.scanFile(file,true)).trim();const p=parseUpi(decoded);if(!p||!p.pa)throw new Error();upiInput.value=decoded;if(p.pn)pn.value=p.pn;if(p.am)am.value=p.am;if(p.tn)tn.value=p.tn;qrMsg.className="msg ok";qrMsg.textContent="UPI QR loaded."}catch{qrMsg.className="msg err";qrMsg.textContent="Could not read a standard UPI QR."}});
+form.addEventListener("submit",async e=>{e.preventDefault();msg.textContent="";createBtn.disabled=true;createBtn.textContent="Creating...";try{let raw=upiInput.value.trim();let source="merchant";let parsed=parseUpi(raw);if(!parsed){if(!isVpa(raw))throw new Error("Enter a valid UPI ID or full UPI URI.");const n=Number(am.value);if(!Number.isFinite(n)||n<=0)throw new Error("Enter a valid amount.");raw=buildManual(raw,pn.value.trim(),n,tn.value.trim());source="manual"}else if(!isVpa(parsed.pa)){throw new Error("QR contains an invalid VPA.")}
+const response=await fetch("/api/payments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({upiUri:raw,amount:am.value.trim(),profile:profile.value,source})});const data=await response.json();if(!response.ok)throw new Error(data.error||"Could not create payment link");checkout.value=data.url;$("paymentId").textContent=data.id;debug.textContent="Short payment ID: "+data.id+"\nProfile: "+profile.value+"\nExpires: "+data.expiresIn+"\n\nThe UPI payload is stored server-side and is no longer exposed in the checkout URL.";empty.style.display="none";result.style.display="block";msg.className="msg ok";msg.textContent="Short payment link created."}catch(err){msg.className="msg err";msg.textContent=err.message||"Could not create payment link"}finally{createBtn.disabled=false;createBtn.textContent="Create Short Payment Link"}});
+$("copy").onclick=async()=>navigator.clipboard.writeText(checkout.value);$("open").onclick=()=>{if(checkout.value)window.open(checkout.value,"_blank","noopener")};
 })();
 </script>
 </body>
