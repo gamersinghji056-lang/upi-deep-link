@@ -43,7 +43,7 @@
     try {
       let raw = scannedRaw ?? $("upiInput").value;
       let source = "merchant";
-      let profile = "merchant_intent";
+      let profile = "compat";
 
       if (!fields(raw)) {
         if (/^\s*upi:/i.test(raw)) Upi.parse(raw);
@@ -51,7 +51,7 @@
         if (!/^[^\s@]+@[^\s@]+$/.test(vpa)) throw new Error("Enter a valid UPI ID or full UPI URI.");
         raw = Upi.manual(vpa, $("pn").value.trim(), $("am").value.trim(), $("tn").value.trim());
         source = "manual";
-        profile = "standard";
+        profile = "exact";
       }
 
       const response = await fetch("/api/payments", {
@@ -61,7 +61,8 @@
           upiUri: raw,
           amount: $("am").value.trim(),
           profile,
-          source
+          source,
+          note: $("tn").value.trim() || "Payment"
         })
       });
       const data = await response.json();
@@ -70,7 +71,7 @@
       $("checkout").value = new URL(data.url, location.origin).href;
       $("paymentId").textContent = data.id;
       $("debug").textContent = source === "merchant"
-        ? "Short payment ID: " + data.id + "\nProfile: merchant intent\nAmount/currency are included when missing. A unique UPI transaction reference is added when the static QR has no tr. Existing merchant fields are preserved.\nExpires: " + data.expiresIn
+        ? "Short payment ID: " + data.id + "\nProfile: simple merchant link\nOriginal QR fields are preserved. Only empty/missing tn and am are filled. No cu or tr is added.\nExpires: " + data.expiresIn
         : "Short payment ID: " + data.id + "\nProfile: manual VPA\nExpires: " + data.expiresIn;
       $("empty").style.display = "none";
       $("result").style.display = "block";
