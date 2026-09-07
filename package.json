@@ -1,0 +1,17 @@
+{
+  "name": "upi-deep-link-checkout",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Test UPI checkout link generator with QR/UPI input and app deep links",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "html5-qrcode": "^2.3.8"
+  }
+}
