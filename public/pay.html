@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Pay via UPI</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#fff;font-family:Arial,sans-serif}.wrap{width:min(480px,calc(100% - 24px));margin:0 auto;padding:28px 0}.card{background:#121a2b;border:1px solid #2a3852;border-radius:20px;padding:20px}.amount{font-size:42px;font-weight:900;margin:8px 0}.muted{color:#9aa8be;word-break:break-all}.apps{display:grid;gap:10px;margin-top:18px}button{width:100%;min-height:56px;border:0;border-radius:14px;background:#6d4aff;color:#fff;font-size:17px;font-weight:900;cursor:pointer}.secondary{background:#1d2941}.download{margin-top:10px;background:#17243a}.download:disabled{opacity:.55;cursor:not-allowed}.err{margin-top:12px;color:#ff8794}.debug{margin-top:14px;padding:10px;border-radius:12px;background:#0b1220;color:#b8c5d9;font:11px monospace;word-break:break-all;white-space:pre-wrap}.badge{display:inline-block;margin-top:8px;padding:5px 9px;border-radius:999px;background:#281c48;color:#d9cbff;font-size:12px;font-weight:800}.hint{margin-top:12px;font-size:12px;color:#9aa8be}.loading{padding:18px 0;color:#9aa8be}.qr-section{margin-top:20px;padding-top:18px;border-top:1px solid #263650;text-align:center}.qr-title{font-size:16px;font-weight:800;margin-bottom:6px}.qr-wrap{width:268px;max-width:100%;margin:14px auto 0;padding:14px;background:#fff;border-radius:16px;display:flex;justify-content:center;align-items:center}.qr-wrap canvas,.qr-wrap img{display:block;max-width:100%;height:auto!important}.qr-status{margin-top:10px;color:#9aa8be;font-size:12px}
+*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#fff;font-family:Arial,sans-serif}.wrap{width:min(480px,calc(100% - 24px));margin:0 auto;padding:28px 0}.card{background:#121a2b;border:1px solid #2a3852;border-radius:20px;padding:20px}.amount{font-size:42px;font-weight:900;margin:8px 0}.muted{color:#9aa8be;word-break:break-all}.apps{display:grid;gap:10px;margin-top:18px}button{width:100%;min-height:56px;border:0;border-radius:14px;background:#6d4aff;color:#fff;font-size:17px;font-weight:900;cursor:pointer}.secondary{background:#1d2941}.download{margin-top:10px;background:#17243a}.download:disabled{opacity:.55;cursor:not-allowed}.err{margin-top:12px;color:#ff8794}.debug{margin-top:14px;padding:10px;border-radius:12px;background:#0b1220;color:#b8c5d9;font:11px monospace;word-break:break-all;white-space:pre-wrap}.badge{display:inline-block;margin-top:8px;padding:5px 9px;border-radius:999px;background:#281c48;color:#d9cbff;font-size:12px;font-weight:800}.hint{margin-top:12px;font-size:12px;color:#9aa8be}.loading{padding:18px 0;color:#9aa8be}.upi-copy{margin-top:18px;padding:14px;border:1px solid #263650;border-radius:14px;background:#0d1525}.upi-copy-label{font-size:12px;color:#9aa8be;margin-bottom:8px}.upi-copy-row{display:flex;gap:8px;align-items:center}.upi-value{flex:1;min-width:0;padding:13px 14px;background:#09111f;border:1px solid #263650;border-radius:12px;font-size:15px;font-weight:700;word-break:break-all}.copy-btn{width:auto;min-width:92px;min-height:46px;padding:0 14px;background:#1d2941;font-size:14px}.qr-section{margin-top:20px;padding-top:18px;border-top:1px solid #263650;text-align:center}.qr-title{font-size:16px;font-weight:800;margin-bottom:6px}.qr-wrap{width:268px;max-width:100%;margin:14px auto 0;padding:14px;background:#fff;border-radius:16px;display:flex;justify-content:center;align-items:center}.qr-wrap canvas,.qr-wrap img{display:block;max-width:100%;height:auto!important}.qr-status{margin-top:10px;color:#9aa8be;font-size:12px}
 </style>
 </head>
 <body>
@@ -18,20 +18,29 @@
 <div id="name"></div>
 <div id="vpa" class="muted"></div>
 <div id="paymentId" class="badge"></div>
+
 <div class="apps">
 <button data-app="phonepe">Pay with PhonePe</button>
 <button class="secondary" data-app="paytm">Pay with Paytm</button>
-<button class="secondary" data-app="gpay">Pay with Google Pay</button>
-<button class="secondary" data-app="other">Other UPI Apps</button>
 </div>
+
+<div class="upi-copy">
+<div class="upi-copy-label">UPI ID</div>
+<div class="upi-copy-row">
+<div id="copyVpaValue" class="upi-value">--</div>
+<button id="copyVpa" class="copy-btn" type="button">Copy</button>
+</div>
+</div>
+
 <div class="qr-section">
-<div class="qr-title">Scan with any UPI app</div>
-<div class="muted">For BHIM, bank UPI apps and other scanners</div>
+<div class="qr-title">Scan QR to Pay</div>
+<div class="muted">Scan with any UPI app</div>
 <div id="upiQr" class="qr-wrap"></div>
 <div id="qrStatus" class="qr-status">Preparing QR...</div>
 <button id="downloadQr" class="download" type="button" disabled>Download QR</button>
 </div>
-<div class="hint">PhonePe and Paytm use their working app-specific routes. The QR and Other UPI option use a standard UPI payment payload with the same VPA and amount. Verify payee and amount before paying.</div>
+
+<div class="hint">Use PhonePe or Paytm for direct app payment. For any other UPI app, scan the QR or copy the UPI ID. Verify payee and amount before paying.</div>
 <pre id="debug" class="debug" hidden></pre>
 </div>
 <div id="error" class="err"></div>
