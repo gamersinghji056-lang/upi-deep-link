@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -146,22 +146,41 @@
       function parseUpi(value) {
         const raw = (value || "").trim();
         if (!raw) return null;
+
         if (raw.toLowerCase().startsWith("upi://")) {
           try {
             const url = new URL(raw);
+            const all = {};
+            url.searchParams.forEach((value, key) => {
+              all[key] = value;
+            });
+
             return {
               pa: url.searchParams.get("pa") || "",
               pn: url.searchParams.get("pn") || "",
               am: url.searchParams.get("am") || "",
               tn: url.searchParams.get("tn") || "",
               tr: url.searchParams.get("tr") || "",
-              mc: url.searchParams.get("mc") || ""
+              mc: url.searchParams.get("mc") || "",
+              all
             };
-          } catch (_) { return null; }
+          } catch (_) {
+            return null;
+          }
         }
+
         if (/^[^\s@]+@[^\s@]+$/.test(raw)) {
-          return { pa: raw, pn: "", am: "", tn: "", tr: "", mc: "" };
+          return {
+            pa: raw,
+            pn: "",
+            am: "",
+            tn: "",
+            tr: "",
+            mc: "",
+            all: { pa: raw }
+          };
         }
+
         return null;
       }
 
@@ -221,17 +240,36 @@
 
         const pn = (nameInput.value.trim() || parsed.pn || "UPI Payment").slice(0, 60);
         const tn = (noteInput.value.trim() || parsed.tn || "Payment").slice(0, 80);
-        const tr = parsed.tr || "";
 
-        const params = new URLSearchParams({
-          pa: parsed.pa,
-          pn,
-          am: amount.toFixed(2),
-          tn,
-          cu: "INR"
+        // Preserve every original QR/deep-link field. This matters for merchant/acquirer QRs.
+        const params = new URLSearchParams();
+        Object.entries(parsed.all || {}).forEach(([key, value]) => {
+          if (value !== null && value !== undefined && value !== "") {
+            params.set(key, String(value));
+          }
         });
-        if (tr) params.set("tr", tr);
-        if (parsed.mc) params.set("mc", parsed.mc);
+
+        params.set("pa", parsed.pa);
+        params.set("pn", pn);
+        params.set("tn", tn);
+        params.set("cu", params.get("cu") || "INR");
+
+        // Dynamic QR amount must remain the QR amount. For static QR, use entered amount.
+        if (parsed.am) {
+          params.set("am", Number(parsed.am).toFixed(2));
+        } else {
+          params.set("am", amount.toFixed(2));
+        }
+
+        // Merchant intents need a transaction reference. Preserve original tr; create one only if absent.
+        if (!params.get("tr")) {
+          params.set("tr", ("WEB" + Date.now().toString(36).toUpperCase()).slice(0, 35));
+        }
+
+        // Give intent apps a transaction reference URL if the QR did not already provide one.
+        if (!params.get("url")) {
+          params.set("url", window.location.origin + "/pay");
+        }
 
         const link = window.location.origin + "/pay?" + params.toString();
         checkoutLink.value = link;

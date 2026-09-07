@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -74,14 +74,17 @@
   <script>
     (() => {
       const q = new URLSearchParams(location.search);
-      const data = {
-        pa: (q.get("pa") || "").trim(),
-        pn: (q.get("pn") || "UPI Payment").trim(),
-        am: (q.get("am") || "").trim(),
-        tn: (q.get("tn") || "Payment").trim(),
-        tr: (q.get("tr") || "").trim(),
-        cu: "INR"
-      };
+      const data = {};
+      q.forEach((value, key) => {
+        data[key] = value;
+      });
+
+      data.pa = (data.pa || "").trim();
+      data.pn = (data.pn || "UPI Payment").trim();
+      data.am = (data.am || "").trim();
+      data.tn = (data.tn || "Payment").trim();
+      data.tr = (data.tr || "").trim();
+      data.cu = (data.cu || "INR").trim() || "INR";
 
       const amount = Number(data.am);
       const validVpa = /^[^\s@]+@[^\s@]+$/.test(data.pa);
@@ -100,15 +103,28 @@
       }
 
       function queryString() {
-        const p = new URLSearchParams({
-          pa: data.pa,
-          pn: data.pn,
-          tn: data.tn,
-          am: amount.toFixed(2),
-          cu: "INR"
+        const p = new URLSearchParams();
+
+        Object.entries(data).forEach(([key, value]) => {
+          if (value !== null && value !== undefined && String(value) !== "") {
+            p.set(key, String(value));
+          }
         });
-        if (data.tr) p.set("tr", data.tr);
-        if (data.mc) p.set("mc", data.mc);
+
+        p.set("pa", data.pa);
+        p.set("pn", data.pn);
+        p.set("tn", data.tn);
+        p.set("am", amount.toFixed(2));
+        p.set("cu", data.cu || "INR");
+
+        if (!p.get("tr")) {
+          p.set("tr", ("WEB" + Date.now().toString(36).toUpperCase()).slice(0, 35));
+        }
+
+        if (!p.get("url")) {
+          p.set("url", location.origin + "/pay");
+        }
+
         return p.toString();
       }
 
