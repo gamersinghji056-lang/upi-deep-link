@@ -1,318 +1,161 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b1020" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>UPI Checkout Link Generator</title>
   <style>
-    :root {
-      color-scheme: dark;
-      --bg:#070b14; --card:#101827; --card2:#0d1422; --line:#243047;
-      --text:#f7f9fc; --muted:#98a6bd; --accent:#6d7cff; --good:#2dcc89; --bad:#ff6577;
-    }
-    * { box-sizing:border-box; }
-    body {
-      margin:0; min-height:100vh; font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-      background:linear-gradient(180deg,#080d18 0%,#0b1220 100%); color:var(--text);
-    }
-    .wrap { width:min(900px,calc(100% - 28px)); margin:0 auto; padding:38px 0 60px; }
-    .hero { margin-bottom:22px; }
-    h1 { margin:0 0 8px; font-size:clamp(28px,5vw,42px); letter-spacing:-.04em; }
-    .sub { margin:0; color:var(--muted); line-height:1.6; max-width:720px; }
-    .grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
-    .card { background:rgba(16,24,39,.94); border:1px solid var(--line); border-radius:22px; padding:20px; }
-    .card h2 { margin:0 0 16px; font-size:18px; }
-    label { display:block; margin:14px 0 7px; font-size:13px; color:#cbd5e5; font-weight:700; }
-    input, textarea {
-      width:100%; border:1px solid var(--line); background:#0b1220; color:var(--text);
-      border-radius:13px; padding:13px 14px; outline:none; font-size:16px;
-    }
-    input:focus, textarea:focus { border-color:#6474ff; box-shadow:0 0 0 3px rgba(100,116,255,.15); }
-    textarea { min-height:92px; resize:vertical; }
-    .file {
-      border:1px dashed #384761; border-radius:15px; padding:16px; background:#0b1220;
-    }
-    .file input { border:0; padding:0; background:transparent; }
-    .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-    button {
-      border:0; border-radius:14px; min-height:48px; padding:0 17px; font-weight:800; font-size:15px;
-      cursor:pointer;
-    }
-    .primary { width:100%; margin-top:18px; color:white; background:linear-gradient(135deg,#6170ff,#785df3); }
-    .secondary { color:#eaf0ff; background:#19243a; border:1px solid #2b3954; }
-    .msg { margin-top:12px; font-size:13px; line-height:1.5; min-height:20px; color:var(--muted); }
-    .msg.ok { color:#62daa9; } .msg.err { color:#ff8896; }
-    .preview { display:flex; flex-direction:column; gap:13px; }
-    .empty {
-      min-height:220px; display:grid; place-items:center; text-align:center; color:var(--muted);
-      border:1px dashed #33415b; border-radius:17px; padding:28px;
-    }
-    .result { display:none; }
-    .pill { display:inline-flex; padding:6px 10px; border-radius:999px; background:#13291f; color:#66dda9; font-size:12px; font-weight:800; }
-    .amount { font-size:34px; font-weight:900; letter-spacing:-.04em; margin:8px 0 2px; }
-    .meta { color:var(--muted); font-size:14px; word-break:break-word; }
-    .linkbox { display:flex; gap:8px; margin-top:12px; }
-    .linkbox input { min-width:0; }
-    .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
-    .note { margin-top:16px; padding:12px 14px; border-radius:13px; background:#0b1220; color:var(--muted); font-size:12px; line-height:1.55; }
-    @media (max-width:760px) {
-      .grid { grid-template-columns:1fr; }
-      .row { grid-template-columns:1fr; }
-      .wrap { width:min(100% - 20px,900px); padding-top:22px; }
-      .card { border-radius:18px; padding:16px; }
-    }
+    *{box-sizing:border-box}body{margin:0;background:#0b1020;color:#f6f8fc;font-family:Arial,sans-serif}
+    .wrap{width:min(900px,calc(100% - 24px));margin:0 auto;padding:28px 0 50px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.card{background:#121a2b;border:1px solid #2a3852;border-radius:18px;padding:18px}
+    h1{margin:0 0 8px}.muted{color:#9aa8be}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    label{display:block;margin:14px 0 6px;font-size:13px;font-weight:700}input,textarea{width:100%;background:#0b1220;color:#fff;border:1px solid #30415f;border-radius:12px;padding:12px;font-size:16px}
+    textarea{min-height:88px}.btn{border:0;border-radius:12px;padding:13px 16px;font-weight:800;cursor:pointer}.primary{width:100%;margin-top:16px;background:#6977ff;color:#fff}
+    .secondary{background:#1d2941;color:#fff}.msg{margin-top:10px;font-size:13px}.ok{color:#63dea5}.err{color:#ff8290}.result{display:none}
+    .debug{margin-top:12px;background:#0b1220;border:1px solid #263650;border-radius:12px;padding:10px;font:12px monospace;word-break:break-all;color:#bac7dc}
+    @media(max-width:760px){.grid{grid-template-columns:1fr}.row{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <section class="hero">
-      <h1>UPI Checkout Link Generator</h1>
-      <p class="sub">Upload a UPI QR or enter a UPI ID/UPI URI, set an amount, then generate a shareable checkout link for app-opening tests.</p>
-    </section>
+<main class="wrap">
+  <h1>UPI Checkout Link Generator</h1>
+  <p class="muted">Clean test build using standard UPI payment parameters.</p>
 
-    <section class="grid">
-      <form id="creator" class="card">
-        <h2>Create test checkout</h2>
+  <section class="grid">
+    <form id="form" class="card">
+      <label>Upload UPI QR</label>
+      <input id="qrFile" type="file" accept="image/*">
+      <div id="qrMsg" class="msg muted">Optional. Standard UPI QR only.</div>
 
-        <label for="qrFile">1. Upload UPI QR (optional)</label>
-        <div class="file"><input id="qrFile" type="file" accept="image/*" /></div>
-        <div id="qrMsg" class="msg">PNG/JPG QR images are supported.</div>
+      <label>UPI ID or full upi://pay URI</label>
+      <textarea id="upiInput" placeholder="merchant@bank or upi://pay?pa=merchant@bank&pn=Merchant"></textarea>
 
-        <label for="upiInput">2. UPI ID or full UPI URI</label>
-        <textarea id="upiInput" placeholder="merchant@bank&#10;or&#10;upi://pay?pa=merchant@bank&pn=Merchant..."></textarea>
-
-        <div class="row">
-          <div>
-            <label for="name">Payee name</label>
-            <input id="name" placeholder="Merchant Name" />
-          </div>
-          <div>
-            <label for="amount">Amount (INR)</label>
-            <input id="amount" inputmode="decimal" placeholder="100.00" />
-          </div>
+      <div class="row">
+        <div>
+          <label>Payee name</label>
+          <input id="pn" placeholder="Merchant">
         </div>
-
-        <label for="note">Payment note (optional)</label>
-        <input id="note" maxlength="80" placeholder="Test payment" />
-
-        <button class="primary" type="submit">Create Checkout Link</button>
-        <div id="formMsg" class="msg"></div>
-      </form>
-
-      <section class="card preview">
-        <h2>Generated link</h2>
-        <div id="empty" class="empty">Your checkout link will appear here.</div>
-        <div id="result" class="result">
-          <span class="pill">READY FOR TESTING</span>
-          <div id="resultAmount" class="amount">â‚¹0.00</div>
-          <div id="resultName" class="meta"></div>
-          <div id="resultUpi" class="meta"></div>
-          <div class="linkbox">
-            <input id="checkoutLink" readonly />
-            <button id="copyBtn" class="secondary" type="button">Copy</button>
-          </div>
-          <div class="actions">
-            <button id="openBtn" class="secondary" type="button">Open checkout</button>
-          </div>
-          <div class="note">
-            This build does not verify transaction success. It only creates the checkout and opens a selected UPI application/deep link.
-          </div>
+        <div>
+          <label>Amount INR</label>
+          <input id="am" inputmode="decimal" placeholder="10.00">
         </div>
-      </section>
+      </div>
+
+      <label>Payment note (optional)</label>
+      <input id="tn" maxlength="80" placeholder="Payment">
+
+      <button class="btn primary" type="submit">Create Checkout Link</button>
+      <div id="msg" class="msg"></div>
+    </form>
+
+    <section class="card">
+      <h3>Generated checkout</h3>
+      <div id="empty" class="muted">No checkout created yet.</div>
+      <div id="result" class="result">
+        <p><strong id="summary"></strong></p>
+        <input id="checkout" readonly>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button id="copy" type="button" class="btn secondary">Copy</button>
+          <button id="open" type="button" class="btn secondary">Open</button>
+        </div>
+        <div class="debug" id="debug"></div>
+      </div>
     </section>
-  </main>
+  </section>
+</main>
 
-  <script src="/vendor/html5-qrcode/html5-qrcode.min.js"></script>
-  <script>
-    (() => {
-      const qrFile = document.getElementById("qrFile");
-      const qrMsg = document.getElementById("qrMsg");
-      const upiInput = document.getElementById("upiInput");
-      const nameInput = document.getElementById("name");
-      const amountInput = document.getElementById("amount");
-      const noteInput = document.getElementById("note");
-      const form = document.getElementById("creator");
-      const formMsg = document.getElementById("formMsg");
-      const empty = document.getElementById("empty");
-      const result = document.getElementById("result");
-      const checkoutLink = document.getElementById("checkoutLink");
-      const resultAmount = document.getElementById("resultAmount");
-      const resultName = document.getElementById("resultName");
-      const resultUpi = document.getElementById("resultUpi");
-      const copyBtn = document.getElementById("copyBtn");
-      const openBtn = document.getElementById("openBtn");
-      let scannedRawUpiUri = null;
+<script src="/vendor/html5-qrcode/html5-qrcode.min.js"></script>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const qrFile=$("qrFile"), qrMsg=$("qrMsg"), upiInput=$("upiInput"),
+        pn=$("pn"), am=$("am"), tn=$("tn"), form=$("form"), msg=$("msg"),
+        result=$("result"), empty=$("empty"), checkout=$("checkout"), debug=$("debug");
 
-      function parseUpi(value) {
-        const raw = (value || "").trim();
-        if (!raw) return null;
+  function parseSource(raw){
+    raw=(raw||"").trim();
+    if(!raw) return null;
 
-        if (raw.toLowerCase().startsWith("upi://")) {
-          try {
-            const url = new URL(raw);
-            const all = {};
-            url.searchParams.forEach((value, key) => {
-              all[key] = value;
-            });
+    if(/^upi:\/\/pay\?/i.test(raw)){
+      try{
+        const u=new URL(raw);
+        return {
+          pa:(u.searchParams.get("pa")||"").trim(),
+          pn:(u.searchParams.get("pn")||"").trim(),
+          am:(u.searchParams.get("am")||"").trim(),
+          tn:(u.searchParams.get("tn")||"").trim()
+        };
+      }catch(e){ return null; }
+    }
 
-            return {
-              pa: url.searchParams.get("pa") || "",
-              pn: url.searchParams.get("pn") || "",
-              am: url.searchParams.get("am") || "",
-              tn: url.searchParams.get("tn") || "",
-              tr: url.searchParams.get("tr") || "",
-              mc: url.searchParams.get("mc") || "",
-              all
-            };
-          } catch (_) {
-            return null;
-          }
-        }
+    if(/^[^\s@]+@[^\s@]+$/.test(raw)){
+      return {pa:raw,pn:"",am:"",tn:""};
+    }
+    return null;
+  }
 
-        if (/^[^\s@]+@[^\s@]+$/.test(raw)) {
-          return {
-            pa: raw,
-            pn: "",
-            am: "",
-            tn: "",
-            tr: "",
-            mc: "",
-            all: { pa: raw }
-          };
-        }
+  function buildStandardUpi(pa,pn,am,tn){
+    const p=new URLSearchParams();
+    p.set("pa",pa);
+    p.set("pn",pn || "UPI Payment");
+    p.set("am",Number(am).toFixed(2));
+    p.set("cu","INR");
+    if(tn) p.set("tn",tn);
+    return "upi://pay?" + p.toString();
+  }
 
-        return null;
-      }
+  qrFile.addEventListener("change", async function(){
+    const file=qrFile.files && qrFile.files[0];
+    if(!file) return;
+    qrMsg.className="msg muted"; qrMsg.textContent="Reading QR...";
+    try{
+      if(!window.Html5Qrcode) throw new Error("decoder missing");
+      const hidden=document.getElementById("qr-hidden") || document.body.appendChild(Object.assign(document.createElement("div"),{id:"qr-hidden"}));
+      hidden.style.display="none";
+      const scanner=new Html5Qrcode("qr-hidden");
+      const decoded=await scanner.scanFile(file,true);
+      const parsed=parseSource(decoded);
+      if(!parsed || !parsed.pa) throw new Error("not standard upi");
+      upiInput.value=decoded;
+      if(parsed.pn) pn.value=parsed.pn;
+      if(parsed.am) am.value=parsed.am;
+      if(parsed.tn) tn.value=parsed.tn;
+      qrMsg.className="msg ok"; qrMsg.textContent="Detected: "+parsed.pa;
+    }catch(e){
+      qrMsg.className="msg err"; qrMsg.textContent="Could not read a standard UPI QR.";
+    }
+  });
 
-      function hydrateFromParsed(parsed) {
-        if (!parsed || !parsed.pa) return false;
-        upiInput.value = parsed.pa;
-        if (parsed.pn) nameInput.value = parsed.pn;
-        if (parsed.am) amountInput.value = parsed.am;
-        if (parsed.tn) noteInput.value = parsed.tn;
-        return true;
-      }
+  form.addEventListener("submit", function(e){
+    e.preventDefault();
+    const parsed=parseSource(upiInput.value);
+    if(!parsed || !parsed.pa){
+      msg.className="msg err"; msg.textContent="Invalid UPI ID / QR URI."; return;
+    }
 
-      qrFile.addEventListener("change", async () => {
-        const file = qrFile.files && qrFile.files[0];
-        if (!file) return;
-        qrMsg.className = "msg";
-        qrMsg.textContent = "Reading QR...";
-        try {
-          if (!window.Html5Qrcode) throw new Error("QR decoder unavailable");
-          const scanner = new Html5Qrcode("qr-hidden-reader");
-          const decoded = await scanner.scanFile(file, true);
-          const parsed = parseUpi(decoded);
-          if (!parsed || !parsed.pa) {
-            qrMsg.className = "msg err";
-            qrMsg.textContent = "QR was read, but it does not contain a standard UPI payment URI.";
-            upiInput.value = decoded;
-            return;
-          }
-          scannedRawUpiUri = decoded.trim();
-          hydrateFromParsed(parsed);
+    const amount=Number(am.value.trim() || parsed.am);
+    if(!Number.isFinite(amount) || amount<=0){
+      msg.className="msg err"; msg.textContent="Enter a valid amount."; return;
+    }
 
-          // Keep the full original UPI URI from the QR.
-          upiInput.value = scannedRawUpiUri;
+    const name=(pn.value.trim() || parsed.pn || "UPI Payment").slice(0,60);
+    const note=(tn.value.trim() || parsed.tn || "").slice(0,80);
+    const upiUri=buildStandardUpi(parsed.pa,name,amount,note);
 
-          qrMsg.className = "msg ok";
-          qrMsg.textContent = "UPI QR detected: " + parsed.pa;
-        } catch (err) {
-          qrMsg.className = "msg err";
-          qrMsg.textContent = "Could not read this QR image. You can paste the UPI ID or UPI URI manually.";
-        }
-      });
+    const q=new URLSearchParams();
+    q.set("upi",upiUri);
+    const link=location.origin+"/pay?"+q.toString();
 
-      upiInput.addEventListener("input", () => {
-        if (scannedRawUpiUri && upiInput.value.trim() !== scannedRawUpiUri) {
-          scannedRawUpiUri = null;
-        }
-      });
-      form.addEventListener("submit", (event) => {
-        event.preventDefault();
-        formMsg.className = "msg";
-        formMsg.textContent = "";
+    checkout.value=link;
+    $("summary").textContent="INR "+amount.toFixed(2)+" -> "+parsed.pa;
+    debug.textContent="Generated UPI URI: "+upiUri;
+    empty.style.display="none"; result.style.display="block";
+    msg.className="msg ok"; msg.textContent="Checkout created.";
+  });
 
-        const parsed = parseUpi(upiInput.value);
-        if (!parsed || !parsed.pa) {
-          formMsg.className = "msg err";
-          formMsg.textContent = "Enter a valid UPI ID or UPI payment URI.";
-          return;
-        }
-
-        const amountText = amountInput.value.trim() || parsed.am;
-        const amount = Number(amountText);
-        if (!Number.isFinite(amount) || amount <= 0 || amount > 1000000) {
-          formMsg.className = "msg err";
-          formMsg.textContent = "Enter a valid amount greater than 0.";
-          return;
-        }
-
-        const pn = (nameInput.value.trim() || parsed.pn || "UPI Payment").slice(0, 60);
-
-        let rawUpiUri = scannedRawUpiUri || upiInput.value.trim();
-
-        if (!rawUpiUri.toLowerCase().startsWith("upi://")) {
-          const manual = new URLSearchParams();
-          manual.set("pa", parsed.pa);
-          if (pn) manual.set("pn", pn);
-          manual.set("am", amount.toFixed(2));
-          manual.set("cu", "INR");
-          rawUpiUri = "upi://pay?" + manual.toString();
-        } else {
-          const hasAmount = /(?:[?&])am=/i.test(rawUpiUri);
-          const hasCurrency = /(?:[?&])cu=/i.test(rawUpiUri);
-
-          if (!hasAmount) {
-            rawUpiUri += (rawUpiUri.includes("?") ? "&" : "?") +
-              "am=" + encodeURIComponent(amount.toFixed(2));
-          }
-
-          if (!hasCurrency) {
-            rawUpiUri += (rawUpiUri.includes("?") ? "&" : "?") + "cu=INR";
-          }
-        }
-
-        const checkoutParams = new URLSearchParams();
-        checkoutParams.set("upi", rawUpiUri);
-        checkoutParams.set("displayAmount", amount.toFixed(2));
-        checkoutParams.set("displayName", pn);
-        checkoutParams.set("displayPa", parsed.pa);
-
-        const link = window.location.origin + "/pay?" + checkoutParams.toString();
-        checkoutLink.value = link;
-        resultAmount.textContent = "â‚¹" + amount.toFixed(2);
-        resultName.textContent = pn;
-        resultUpi.textContent = parsed.pa;
-        empty.style.display = "none";
-        result.style.display = "block";
-        formMsg.className = "msg ok";
-        formMsg.textContent = "Checkout link created.";
-      });
-
-      copyBtn.addEventListener("click", async () => {
-        if (!checkoutLink.value) return;
-        try {
-          await navigator.clipboard.writeText(checkoutLink.value);
-          copyBtn.textContent = "Copied";
-          setTimeout(() => copyBtn.textContent = "Copy", 1400);
-        } catch (_) {
-          checkoutLink.select();
-          document.execCommand("copy");
-        }
-      });
-
-      openBtn.addEventListener("click", () => {
-        if (checkoutLink.value) window.open(checkoutLink.value, "_blank", "noopener");
-      });
-
-      const hidden = document.createElement("div");
-      hidden.id = "qr-hidden-reader";
-      hidden.style.display = "none";
-      document.body.appendChild(hidden);
-    })();
-  </script>
+  $("copy").onclick=async()=>{await navigator.clipboard.writeText(checkout.value)};
+  $("open").onclick=()=>{if(checkout.value) window.open(checkout.value,"_blank","noopener")};
+})();
+</script>
 </body>
 </html>
-

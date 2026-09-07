@@ -1,164 +1,103 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0a0f1c" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>Pay via UPI</title>
   <style>
-    :root { color-scheme:dark; --bg:#070b14; --card:#111827; --line:#27344d; --text:#f8fafc; --muted:#96a3b7; }
-    * { box-sizing:border-box; }
-    body {
-      margin:0; min-height:100vh; font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-      background:linear-gradient(180deg,#070b14,#0e1626); color:var(--text);
-    }
-    .wrap { width:min(460px,calc(100% - 24px)); margin:0 auto; padding:32px 0 60px; }
-    .top { text-align:center; margin-bottom:18px; }
-    .brand { font-size:13px; color:#a9b5c7; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
-    .card { background:#111827; border:1px solid var(--line); border-radius:24px; padding:22px; }
-    .label { color:var(--muted); font-size:13px; }
-    .amount { font-size:44px; font-weight:900; letter-spacing:-.05em; margin:4px 0 8px; }
-    .payee { font-size:18px; font-weight:800; margin-top:6px; word-break:break-word; }
-    .upi { color:var(--muted); margin-top:4px; font-size:14px; word-break:break-all; }
-    .divider { height:1px; background:var(--line); margin:20px 0; }
-    .apps { display:grid; gap:11px; }
-    button {
-      width:100%; min-height:56px; border-radius:16px; border:1px solid #2c3a55; color:white;
-      background:#182238; padding:0 16px; font-size:16px; font-weight:850; cursor:pointer;
-      display:flex; align-items:center; justify-content:space-between;
-    }
-    button:active { transform:translateY(1px); }
-    .app-left { display:flex; align-items:center; gap:12px; }
-    .logo {
-      width:34px; height:34px; border-radius:10px; display:grid; place-items:center;
-      background:#f8fafc; color:#111827; font-weight:950; font-size:13px;
-    }
-    .generic { background:linear-gradient(135deg,#5c6cff,#7257ef); border-color:transparent; }
-    .note { margin-top:16px; color:var(--muted); font-size:12px; line-height:1.55; text-align:center; }
-    .err { display:none; color:#ff96a2; font-size:13px; margin-top:12px; text-align:center; }
-    @media (max-width:380px) { .card { padding:17px; } .amount { font-size:38px; } }
+    *{box-sizing:border-box}body{margin:0;background:#0b1020;color:#fff;font-family:Arial,sans-serif}
+    .wrap{width:min(460px,calc(100% - 24px));margin:0 auto;padding:28px 0}.card{background:#121a2b;border:1px solid #2a3852;border-radius:20px;padding:20px}
+    .amount{font-size:42px;font-weight:900;margin:8px 0}.muted{color:#9aa8be;word-break:break-all}.apps{display:grid;gap:10px;margin-top:18px}
+    button{width:100%;min-height:54px;border:1px solid #30415f;border-radius:14px;background:#1a2640;color:#fff;font-size:16px;font-weight:800;cursor:pointer}
+    .generic{background:#6574ff}.err{margin-top:12px;color:#ff8794}.debug{margin-top:14px;padding:10px;border-radius:12px;background:#0b1220;color:#b8c5d9;font:11px monospace;word-break:break-all}
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <div class="top"><div class="brand">Secure UPI Test Checkout</div></div>
-    <section class="card">
-      <div class="label">Amount to pay</div>
-      <div id="amount" class="amount">â‚¹0.00</div>
-      <div id="name" class="payee">UPI Payment</div>
-      <div id="upi" class="upi"></div>
-      <div class="divider"></div>
+<main class="wrap">
+<section class="card">
+  <div class="muted">Amount</div>
+  <div id="amount" class="amount">INR 0.00</div>
+  <div id="name"></div>
+  <div id="vpa" class="muted"></div>
 
-      <div class="label" style="margin-bottom:10px">Choose UPI app</div>
-      <div class="apps">
-        <button type="button" data-app="phonepe">
-          <span class="app-left"><span class="logo">Pe</span>PhonePe</span><span>â€º</span>
-        </button>
-        <button type="button" data-app="paytm">
-          <span class="app-left"><span class="logo">P</span>Paytm</span><span>â€º</span>
-        </button>
-        <button type="button" data-app="gpay">
-          <span class="app-left"><span class="logo">G</span>Google Pay</span><span>â€º</span>
-        </button>
-        <button type="button" class="generic" data-app="upi">
-          <span class="app-left"><span class="logo">UPI</span>Other UPI Apps</span><span>â€º</span>
-        </button>
-      </div>
-      <div id="error" class="err"></div>
-      <div class="note">
-        Testing build only. This page starts a UPI intent/deep link; it does not confirm whether payment succeeded.
-      </div>
-    </section>
-  </main>
+  <div class="apps">
+    <button data-app="phonepe">PhonePe</button>
+    <button data-app="gpay">Google Pay</button>
+    <button data-app="paytm">Paytm</button>
+    <button data-app="generic" class="generic">Other UPI Apps</button>
+  </div>
 
-  <script>
-    (() => {
-      const q = new URLSearchParams(location.search);
+  <div id="error" class="err"></div>
+  <div id="debug" class="debug"></div>
+</section>
+</main>
 
-      const rawUpiUri = (q.get("upi") || "").trim();
-      const displayAmount = Number(q.get("displayAmount") || "0");
-      const displayName = (q.get("displayName") || "UPI Payment").trim();
-      const displayPa = (q.get("displayPa") || "").trim();
+<script>
+(function(){
+  const q=new URLSearchParams(location.search);
+  const upiUri=(q.get("upi")||"").trim();
+  const error=document.getElementById("error");
 
-      let parsedUpi = null;
-      try {
-        if (rawUpiUri.toLowerCase().startsWith("upi://")) {
-          parsedUpi = new URL(rawUpiUri);
-        }
-      } catch (_) {}
+  let u=null;
+  try{ u=new URL(upiUri); }catch(e){}
 
-      const pa = parsedUpi ? (parsedUpi.searchParams.get("pa") || displayPa) : displayPa;
-      const pn = parsedUpi ? (parsedUpi.searchParams.get("pn") || displayName) : displayName;
-      const rawAmount = parsedUpi ? parsedUpi.searchParams.get("am") : null;
-      const amount = Number(rawAmount || displayAmount);
+  if(!u || u.protocol!=="upi:" || u.hostname!=="pay"){
+    error.textContent="Invalid UPI payment URI.";
+    document.querySelectorAll("button").forEach(b=>b.disabled=true);
+    return;
+  }
 
-      const validVpa = /^[^\s@]+@[^\s@]+$/.test(pa);
-      const validAmount = Number.isFinite(amount) && amount > 0;
-      const validRawUri = /^upi:\/\/pay\?/i.test(rawUpiUri);
+  const pa=(u.searchParams.get("pa")||"").trim();
+  const pn=(u.searchParams.get("pn")||"UPI Payment").trim();
+  const am=Number(u.searchParams.get("am")||"0");
 
-      document.getElementById("amount").textContent =
-        validAmount ? "\u20B9" + amount.toFixed(2) : "Invalid amount";
-      document.getElementById("name").textContent = pn || "UPI Payment";
-      document.getElementById("upi").textContent = pa || "Missing UPI ID";
+  if(!/^[^\s@]+@[^\s@]+$/.test(pa) || !Number.isFinite(am) || am<=0){
+    error.textContent="Invalid VPA or amount.";
+    document.querySelectorAll("button").forEach(b=>b.disabled=true);
+    return;
+  }
 
-      const error = document.getElementById("error");
-      if (!validRawUri || !validVpa || !validAmount) {
-        error.style.display = "block";
-        error.textContent = "This checkout link is missing valid UPI payment details.";
-        document.querySelectorAll("button[data-app]").forEach(b => b.disabled = true);
-        return;
-      }
+  document.getElementById("amount").textContent="INR "+am.toFixed(2);
+  document.getElementById("name").textContent=pn;
+  document.getElementById("vpa").textContent=pa;
+  document.getElementById("debug").textContent=upiUri;
 
-      const rawQuery = rawUpiUri.substring(rawUpiUri.indexOf("?") + 1);
+  const query=upiUri.slice(upiUri.indexOf("?")+1);
+  const packages={
+    phonepe:"com.phonepe.app",
+    gpay:"com.google.android.apps.nbu.paisa.user",
+    paytm:"net.one97.paytm"
+  };
 
-      function queryString() {
-        return rawQuery;
-      }
+  function isAndroid(){return /Android/i.test(navigator.userAgent||"")}
+  function isIOS(){return /iPhone|iPad|iPod/i.test(navigator.userAgent||"")}
 
-      function isAndroid() {
-        return /Android/i.test(navigator.userAgent || "");
-      }
+  function androidIntent(pkg){
+    const fallback=encodeURIComponent("https://play.google.com/store/apps/details?id="+pkg);
+    return "intent://pay?"+query+"#Intent;scheme=upi;package="+pkg+";S.browser_fallback_url="+fallback+";end";
+  }
 
-      function androidIntent(packageName) {
-        const qs = queryString();
-        return "intent://pay?" + qs +
-          "#Intent;scheme=upi;package=" + packageName + ";end";
-      }
+  function iosTarget(app){
+    if(app==="gpay") return "gpay://upi/pay?"+query;
+    if(app==="phonepe") return "phonepe://pay?"+query;
+    if(app==="paytm") return "paytmmp://pay?"+query;
+    return upiUri;
+  }
 
-      function targetFor(app) {
-        const qs = queryString();
+  function target(app){
+    if(app==="generic") return upiUri;
+    if(isAndroid()) return androidIntent(packages[app]);
+    if(isIOS()) return iosTarget(app);
+    return upiUri;
+  }
 
-        if (isAndroid()) {
-          if (app === "phonepe") return androidIntent("com.phonepe.app");
-          if (app === "paytm") return androidIntent("net.one97.paytm");
-          if (app === "gpay") return androidIntent("com.google.android.apps.nbu.paisa.user");
-        }
-
-        if (app === "gpay") return "gpay://upi/pay?" + qs;
-
-        // Generic standard UPI URI is the safest cross-app fallback.
-        return "upi://pay?" + qs;
-      }
-
-      document.querySelectorAll("button[data-app]").forEach(button => {
-        button.addEventListener("click", () => {
-          const app = button.dataset.app;
-          const target = targetFor(app);
-          error.style.display = "none";
-          window.location.href = target;
-
-          if (app !== "upi") {
-            setTimeout(() => {
-              if (!document.hidden) {
-                error.style.display = "block";
-                error.textContent = "If the selected app did not open, try â€œOther UPI Appsâ€.";
-              }
-            }, 1800);
-          }
-        });
-      });
-    })();
-  </script>
+  document.querySelectorAll("button[data-app]").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      error.textContent="";
+      location.href=target(btn.dataset.app);
+    });
+  });
+})();
+</script>
 </body>
 </html>
-
