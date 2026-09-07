@@ -1,126 +1,35 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>Pay via UPI v5</title>
-  <style>
-    *{box-sizing:border-box}body{margin:0;background:#0b1020;color:#fff;font-family:Arial,sans-serif}
-    .wrap{width:min(480px,calc(100% - 24px));margin:0 auto;padding:28px 0}.card{background:#121a2b;border:1px solid #2a3852;border-radius:20px;padding:20px}
-    .amount{font-size:42px;font-weight:900;margin:8px 0}.muted{color:#9aa8be;word-break:break-all}.apps{display:grid;gap:10px;margin-top:18px}
-    button{width:100%;min-height:54px;border:1px solid #30415f;border-radius:14px;background:#1a2640;color:#fff;font-size:16px;font-weight:800;cursor:pointer}
-    .generic{background:#6574ff}.err{margin-top:12px;color:#ff8794}.debug{margin-top:14px;padding:10px;border-radius:12px;background:#0b1220;color:#b8c5d9;font:11px monospace;word-break:break-all;white-space:pre-wrap}
-    .badge{display:inline-block;margin-top:8px;padding:5px 9px;border-radius:999px;background:#1d2941;color:#c9d5e8;font-size:12px;font-weight:700}.hint{margin-top:12px;font-size:12px;color:#9aa8be}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pay via UPI v7</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#fff;font-family:Arial,sans-serif}.wrap{width:min(480px,calc(100% - 24px));margin:auto;padding:28px 0}.card{background:#121a2b;border:1px solid #2a3852;border-radius:20px;padding:20px}.amount{font-size:42px;font-weight:900;margin:8px 0}.muted{color:#9aa8be;word-break:break-all}.apps{display:grid;gap:10px;margin-top:18px}button{width:100%;min-height:54px;border:1px solid #30415f;border-radius:14px;background:#1a2640;color:#fff;font-size:16px;font-weight:800;cursor:pointer}.generic{background:#6877ff}.err{margin-top:12px;color:#ff8794}.debug{margin-top:14px;padding:10px;border-radius:12px;background:#0b1220;color:#b8c5d9;font:11px monospace;word-break:break-all;white-space:pre-wrap}.badge{display:inline-block;margin-top:8px;padding:5px 9px;border-radius:999px;background:#1d2941;color:#c9d5e8;font-size:12px;font-weight:700}.hint{margin-top:12px;font-size:12px;color:#9aa8be}
+</style>
 </head>
 <body>
-<main class="wrap">
-<section class="card">
-  <div class="muted">Amount</div>
-  <div id="amount" class="amount">INR --</div>
-  <div id="name"></div>
-  <div id="vpa" class="muted"></div>
-  <div id="source" class="badge"></div>
-
-  <div class="apps">
-    <button data-app="generic" class="generic">Pay by any UPI App</button>
-    <button data-app="phonepe">PhonePe</button>
-    <button data-app="gpay">Google Pay</button>
-    <button data-app="paytm">Paytm</button>
-  </div>
-  <div class="hint">Use “Pay by any UPI App” first. The app-specific buttons only target a package; they do not change merchant transaction data.</div>
-
-  <div id="error" class="err"></div>
-  <div id="debug" class="debug"></div>
-</section>
-</main>
-
+<main class="wrap"><section class="card">
+<div class="muted">Amount</div><div id="amount" class="amount">INR --</div><div id="name"></div><div id="vpa" class="muted"></div><div id="source" class="badge"></div>
+<div class="apps"><button data-app="generic" class="generic">Pay by any UPI App</button><button data-app="phonepe">PhonePe</button><button data-app="gpay">Google Pay</button><button data-app="paytm">Paytm</button></div>
+<div class="hint">Use the generic button first. This sends the exact URI generated on the previous page; no payment parameters are added here.</div>
+<div id="error" class="err"></div><div id="debug" class="debug"></div>
+</section></main>
 <script>
 (function(){
-  const q=new URLSearchParams(location.search);
-  const error=document.getElementById("error");
-
-  function fromBase64Url(value){
-    const normalized=value.replace(/-/g,"+").replace(/_/g,"/");
-    const padded=normalized+"=".repeat((4-normalized.length%4)%4);
-    const binary=atob(padded);
-    const bytes=new Uint8Array(binary.length);
-    for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
-    return new TextDecoder().decode(bytes);
-  }
-
-  let upiUri="";
-  const payload=(q.get("payload")||"").trim();
-  if(payload){ try{ upiUri=fromBase64Url(payload).trim(); }catch(e){} }
-  if(!upiUri) upiUri=(q.get("upi")||"").trim();
-
-  let u=null;
-  try{ u=new URL(upiUri); }catch(e){}
-
-  if(!u || u.protocol!=="upi:" || u.hostname!=="pay"){
-    error.textContent="Invalid UPI payment URI.";
-    document.querySelectorAll("button").forEach(b=>b.disabled=true);
-    return;
-  }
-
-  const pa=(u.searchParams.get("pa")||"").trim();
-  const pn=(u.searchParams.get("pn")||"UPI Payment").trim();
-  const rawAmount=(u.searchParams.get("am")||"").trim();
-  const am=rawAmount?Number(rawAmount):0;
-
-  if(!/^[^\s@]+@[^\s@]+$/.test(pa)){
-    error.textContent="Invalid VPA in payment URI.";
-    document.querySelectorAll("button").forEach(b=>b.disabled=true);
-    return;
-  }
-
-  document.getElementById("amount").textContent=Number.isFinite(am)&&am>0 ? "INR "+am.toFixed(2) : "Amount in UPI app";
-  document.getElementById("name").textContent=pn;
-  document.getElementById("vpa").textContent=pa;
-  document.getElementById("source").textContent=(q.get("source")==="merchant"?"Merchant intent mode":"Manual VPA mode");
-
-  const fields=["pa","pn","mc","tr","am","cu","url","tn"];
-  const fieldText=fields.map(k=>k+"="+(u.searchParams.get(k)||"(missing)")).join("\n");
-  document.getElementById("debug").textContent="Exact UPI URI sent to app:\n"+upiUri+"\n\nParsed merchant fields:\n"+fieldText;
-
-  const queryIndex=upiUri.indexOf("?");
-  const hashIndex=upiUri.indexOf("#",queryIndex);
-  const query=upiUri.slice(queryIndex+1,hashIndex<0?upiUri.length:hashIndex);
-
-  const packages={
-    phonepe:"com.phonepe.app",
-    gpay:"com.google.android.apps.nbu.paisa.user",
-    paytm:"net.one97.paytm"
-  };
-
-  function isAndroid(){return /Android/i.test(navigator.userAgent||"")}
-  function isIOS(){return /iPhone|iPad|iPod/i.test(navigator.userAgent||"")}
-
-  function androidIntent(pkg){
-    const fallback=encodeURIComponent("https://play.google.com/store/apps/details?id="+pkg);
-    return "intent://pay?"+query+"#Intent;scheme=upi;package="+pkg+";S.browser_fallback_url="+fallback+";end";
-  }
-
-  function iosTarget(app){
-    if(app==="gpay") return "gpay://upi/pay?"+query;
-    if(app==="phonepe") return "phonepe://pay?"+query;
-    if(app==="paytm") return "paytmmp://pay?"+query;
-    return upiUri;
-  }
-
-  function target(app){
-    if(app==="generic") return upiUri;
-    if(isAndroid()) return androidIntent(packages[app]);
-    if(isIOS()) return iosTarget(app);
-    return upiUri;
-  }
-
-  document.querySelectorAll("button[data-app]").forEach(btn=>{
-    btn.addEventListener("click",()=>{
-      error.textContent="";
-      location.href=target(btn.dataset.app);
-    });
-  });
+const q=new URLSearchParams(location.search),error=document.getElementById("error");
+function fromB64u(v){const n=v.replace(/-/g,"+").replace(/_/g,"/"),p=n+"=".repeat((4-n.length%4)%4),b=atob(p),bytes=new Uint8Array(b.length);for(let i=0;i<b.length;i++)bytes[i]=b.charCodeAt(i);return new TextDecoder().decode(bytes)}
+let upiUri="";try{upiUri=fromB64u((q.get("payload")||"").trim()).trim()}catch(_){}if(!upiUri)upiUri=(q.get("upi")||"").trim();let u=null;try{u=new URL(upiUri)}catch(_){}
+if(!u||u.protocol!=="upi:"||u.hostname!=="pay"){error.textContent="Invalid UPI payment URI.";document.querySelectorAll("button").forEach(b=>b.disabled=true);return}
+const pa=(u.searchParams.get("pa")||"").trim(),pn=(u.searchParams.get("pn")||"UPI Payment").trim(),rawAm=(u.searchParams.get("am")||"").trim(),amount=rawAm?Number(rawAm):0;if(!/^[^\s@]+@[^\s@]+$/.test(pa)){error.textContent="Invalid VPA.";document.querySelectorAll("button").forEach(b=>b.disabled=true);return}
+document.getElementById("amount").textContent=Number.isFinite(amount)&&amount>0?"INR "+amount.toFixed(2):"Enter amount in UPI app";document.getElementById("name").textContent=pn;document.getElementById("vpa").textContent=pa;document.getElementById("source").textContent=(q.get("profile")||"unknown")+" profile";
+const keys=["pa","pn","am","cu","tr","mc","mode","orgid","url","sign"],fields=keys.map(k=>k+"="+(u.searchParams.get(k)||"(missing)")).join("\n");document.getElementById("debug").textContent="Exact URI sent to UPI app:\n"+upiUri+"\n\nFields:\n"+fields;
+const qi=upiUri.indexOf("?"),hi=upiUri.indexOf("#",qi),query=upiUri.slice(qi+1,hi<0?upiUri.length:hi);const pkgs={phonepe:"com.phonepe.app",gpay:"com.google.android.apps.nbu.paisa.user",paytm:"net.one97.paytm"};
+function android(){return /Android/i.test(navigator.userAgent||"")}function ios(){return /iPhone|iPad|iPod/i.test(navigator.userAgent||"")}
+function androidTarget(pkg){return"intent://pay?"+query+"#Intent;scheme=upi;package="+pkg+";end"}
+function iosTarget(app){if(app==="gpay")return"gpay://upi/pay?"+query;if(app==="phonepe")return"phonepe://pay?"+query;if(app==="paytm")return"paytmmp://pay?"+query;return upiUri}
+function target(app){if(app==="generic")return upiUri;if(android())return androidTarget(pkgs[app]);if(ios())return iosTarget(app);return upiUri}
+document.querySelectorAll("button[data-app]").forEach(btn=>btn.addEventListener("click",()=>{error.textContent="";location.href=target(btn.dataset.app)}));
 })();
 </script>
 </body>
