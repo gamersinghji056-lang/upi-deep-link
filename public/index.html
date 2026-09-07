@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>UPI Checkout Link Generator v5</title>
+  <title>UPI Checkout Link Generator v6</title>
   <style>
     *{box-sizing:border-box}body{margin:0;background:#0b1020;color:#f6f8fc;font-family:Arial,sans-serif}
     .wrap{width:min(980px,calc(100% - 24px));margin:0 auto;padding:28px 0 50px}
@@ -21,8 +21,8 @@
 </head>
 <body>
 <main class="wrap">
-  <h1>UPI Checkout Link Generator v5</h1>
-  <p class="muted">Merchant intent mode now creates a unique transaction reference for every unsigned static QR request and checks merchant-required fields before generating the link.</p>
+  <h1>UPI Checkout Link Generator v6</h1>
+  <p class="muted">Static merchant QR compatibility mode: preserve the QR payload and only add missing amount, currency and a unique transaction reference where safe.</p>
 
   <section class="grid">
     <form id="form" class="card">
@@ -45,20 +45,6 @@
         </div>
       </div>
 
-      <div id="merchantFields" class="hidden">
-        <div class="row">
-          <div>
-            <label>Merchant MCC</label>
-            <input id="mc" inputmode="numeric" maxlength="4" placeholder="Actual 4-digit MCC">
-          </div>
-          <div>
-            <label>Transaction URL</label>
-            <input id="txnUrl" placeholder="https://merchant.example/order/123">
-          </div>
-        </div>
-        <div class="msg warn">If the QR does not contain MCC, enter the real MCC assigned by the merchant's acquiring bank/PSP. v5 will not guess MCC.</div>
-      </div>
-
       <label>Payment note (optional)</label>
       <input id="tn" maxlength="80" placeholder="Payment">
 
@@ -67,7 +53,7 @@
     </form>
 
     <section class="card">
-      <h3>Merchant intent readiness</h3>
+      <h3>QR compatibility check</h3>
       <div id="checks" class="muted">Upload/paste a merchant QR to inspect its parameters.</div>
 
       <h3 style="margin-top:22px">Generated checkout</h3>
@@ -90,8 +76,7 @@
 (function(){
   const $ = id => document.getElementById(id);
   const qrFile=$("qrFile"), qrMsg=$("qrMsg"), upiInput=$("upiInput"),
-        pn=$("pn"), am=$("am"), tn=$("tn"), mc=$("mc"), txnUrl=$("txnUrl"),
-        merchantFields=$("merchantFields"), form=$("form"), msg=$("msg"),
+        pn=$("pn"), am=$("am"), tn=$("tn"), form=$("form"), msg=$("msg"),
         result=$("result"), empty=$("empty"), checkout=$("checkout"), debug=$("debug"),
         modeBadge=$("modeBadge"), checks=$("checks");
 
@@ -136,14 +121,6 @@
     return beforeHash+sep+encodeURIComponent(key)+"="+encodeURIComponent(value)+hash;
   }
 
-  function removeParam(raw,key){
-    try{
-      const u=new URL(raw);
-      u.searchParams.delete(key);
-      return "upi://pay?"+u.searchParams.toString();
-    }catch(_){return raw}
-  }
-
   function buildManualUpi(pa,name,amount,note){
     const p=new URLSearchParams();
     p.set("pa",pa);
@@ -173,17 +150,15 @@
       checks.textContent="Upload/paste a merchant QR to inspect its parameters.";
       return;
     }
-    const effectiveMc=parsed.mc || mc.value.trim();
-    const effectiveUrl=parsed.url || txnUrl.value.trim();
     const rows=[
       ["pa",!!parsed.pa,parsed.pa||"missing"],
       ["pn",!!(parsed.pn||pn.value.trim()),parsed.pn||pn.value.trim()||"missing"],
-      ["mc",/^\d{4}$/.test(effectiveMc),effectiveMc||"missing - actual merchant MCC required"],
-      ["tr",!!parsed.tr,parsed.tr||"missing - v5 will generate a unique tr"],
-      ["am",!!parsed.am,parsed.am||"missing - entered amount will be added"],
-      ["cu",!!parsed.cu,parsed.cu||"missing - INR will be added"],
-      ["url",!!effectiveUrl,effectiveUrl||"missing - transaction URL required for strict web merchant intent"],
-      ["sign",true,parsed.signed?"present - payload cannot be modified safely":"not present"]
+      ["mc",true,parsed.mc||"not present - left unchanged"],
+      ["tr",!!parsed.tr,parsed.tr|| (parsed.signed?"missing - signed QR stays unchanged":"missing - v6 will generate a unique tr")],
+      ["am",!!parsed.am,parsed.am|| (parsed.signed?"missing - signed QR stays unchanged":"missing - entered amount will be added")],
+      ["cu",!!parsed.cu,parsed.cu|| (parsed.signed?"missing - signed QR stays unchanged":"missing - INR will be added")],
+      ["url",true,parsed.url||"not present - left unchanged"],
+      ["sign",true,parsed.signed?"present - exact QR payload will be used":"not present"]
     ];
     checks.className="";
     checks.innerHTML=rows.map(r=>'<div class="check"><strong>'+r[0]+'</strong> <span class="'+(r[1]?'ok':'warn')+'">'+(r[1]?'OK: ':'CHECK: ')+escapeHtml(r[2])+'</span></div>').join("");
@@ -197,21 +172,17 @@
     const raw=upiInput.value.trim();
     const parsed=parseUpi(raw);
     if(parsed){
-      merchantFields.classList.remove("hidden");
       modeBadge.textContent=parsed.signed?"Mode: signed merchant QR":"Mode: merchant QR intent";
       modeBadge.style.background=parsed.signed?"#503b12":"#183d34";
-      if(parsed.mc) mc.value=parsed.mc;
-      if(parsed.url) txnUrl.value=parsed.url;
       renderChecks(parsed);
     }else{
-      merchantFields.classList.add("hidden");
       modeBadge.textContent="Mode: manual VPA";
       modeBadge.style.background="#1d2941";
       renderChecks(null);
     }
   }
 
-  [upiInput,pn,am,mc,txnUrl].forEach(el=>el.addEventListener("input",()=>{
+  [upiInput,pn,am].forEach(el=>el.addEventListener("input",()=>{
     const p=parseUpi(upiInput.value.trim());
     if(p) renderChecks(p);
     if(el===upiInput) updateMode();
@@ -233,13 +204,11 @@
       if(parsed.pn) pn.value=parsed.pn;
       if(parsed.am) am.value=parsed.am;
       if(parsed.tn) tn.value=parsed.tn;
-      if(parsed.mc) mc.value=parsed.mc;
-      if(parsed.url) txnUrl.value=parsed.url;
       updateMode();
       qrMsg.className=parsed.signed?"msg warn":"msg ok";
       qrMsg.textContent=parsed.signed
         ?"Signed QR detected. Direct QR scan may work even when web intent cannot safely add missing merchant fields."
-        :"Merchant QR detected. v5 will preserve existing fields and add a unique tr if missing.";
+        :"Merchant QR detected. v6 will preserve existing fields and only add missing am/cu/tr.";
     }catch(e){
       qrMsg.className="msg err"; qrMsg.textContent="Could not read a standard UPI QR.";
     }
@@ -266,25 +235,14 @@
       if(parsed.signed){
         finalUri=raw;
         if(Number.isFinite(qrAmount) && qrAmount>0) displayAmount=qrAmount; else displayAmount=0;
-        const missing=[];
-        if(!parsed.mc) missing.push("mc");
-        if(!parsed.tr) missing.push("tr");
-        if(!parsed.url) missing.push("url");
-        if(missing.length){
-          msg.className="msg err";
-          msg.textContent="Signed QR is missing "+missing.join(", ")+". Direct scan can let the scanning PSP add context, but changing this signed QR would invalidate it. Use an acquirer/PSP-generated merchant intent instead.";
-          return;
-        }
-        detail="SIGNED MERCHANT QR: raw payload unchanged.";
+        detail="SIGNED MERCHANT QR: raw payload kept exactly unchanged.";
       }else{
         finalUri=raw;
-
-        if(parsed.tid) finalUri=removeParam(finalUri,"tid");
 
         if(Number.isFinite(qrAmount) && qrAmount>0){
           displayAmount=qrAmount;
           if(Number.isFinite(amountInput) && amountInput>0 && Math.abs(amountInput-qrAmount)>0.0001){
-            msg.className="msg err"; msg.textContent="This QR already contains a fixed amount. v5 will not overwrite it."; return;
+            msg.className="msg err"; msg.textContent="This QR already contains a fixed amount. v6 will not overwrite it."; return;
           }
         }else{
           if(!Number.isFinite(amountInput) || amountInput<=0){
@@ -296,30 +254,15 @@
 
         if(!hasParam(finalUri,"cu")) finalUri=appendParamRaw(finalUri,"cu","INR");
 
-        const effectiveMc=(parsed.mc || mc.value.trim());
-        if(!/^\d{4}$/.test(effectiveMc)){
-          msg.className="msg err";
-          msg.textContent="Merchant MCC is missing. Enter the real 4-digit MCC assigned by the acquiring bank/PSP; v5 will not invent one.";
-          return;
-        }
-        if(!parsed.mc) finalUri=appendParamRaw(finalUri,"mc",effectiveMc);
-
-        const effectiveUrl=(parsed.url || txnUrl.value.trim());
-        if(!effectiveUrl || !/^https?:\/\//i.test(effectiveUrl)){
-          msg.className="msg err";
-          msg.textContent="Transaction URL is missing. Enter the merchant/order URL used for this payment.";
-          return;
-        }
-        if(!parsed.url) finalUri=appendParamRaw(finalUri,"url",effectiveUrl);
-
         let generatedTr="";
         if(!parsed.tr){
           generatedTr=makeTr();
           finalUri=appendParamRaw(finalUri,"tr",generatedTr);
         }
 
-        detail="MERCHANT INTENT: existing QR fields preserved; missing am/cu/mc/url added; "+
-          (generatedTr?('unique tr generated: '+generatedTr):('existing tr preserved: '+parsed.tr))+".";
+        detail="STATIC QR COMPATIBILITY: original QR fields preserved; only missing am/cu/tr added; "+
+          (generatedTr?("unique tr generated: "+generatedTr):("existing tr preserved: "+parsed.tr))+
+          ". MCC and URL are neither required nor invented.";
       }
     }else{
       if(!isVpa(raw)){
