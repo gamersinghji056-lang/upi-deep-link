@@ -103,27 +103,15 @@
       }
 
       function queryString() {
-        const p = new URLSearchParams();
+        const p = new URLSearchParams(location.search);
 
-        Object.entries(data).forEach(([key, value]) => {
-          if (value !== null && value !== undefined && String(value) !== "") {
-            p.set(key, String(value));
-          }
-        });
+        // Exact pass-through: keep original merchant/acquirer parameters untouched.
+        p.delete("tn");
 
-        p.set("pa", data.pa);
-        p.set("pn", data.pn);
-        p.set("tn", data.tn);
-        p.set("am", amount.toFixed(2));
-        p.set("cu", data.cu || "INR");
-
-        if (!p.get("tr")) {
-          p.set("tr", ("WEB" + Date.now().toString(36).toUpperCase()).slice(0, 35));
-        }
-
-        if (!p.get("url")) {
-          p.set("url", location.origin + "/pay");
-        }
+        if (!p.get("pa")) p.set("pa", data.pa);
+        if (!p.get("pn") && data.pn) p.set("pn", data.pn);
+        if (!p.get("am")) p.set("am", amount.toFixed(2));
+        if (!p.get("cu")) p.set("cu", data.cu || "INR");
 
         return p.toString();
       }

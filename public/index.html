@@ -239,9 +239,9 @@
         }
 
         const pn = (nameInput.value.trim() || parsed.pn || "UPI Payment").slice(0, 60);
-        const tn = (noteInput.value.trim() || parsed.tn || "Payment").slice(0, 80);
 
-        // Preserve every original QR/deep-link field. This matters for merchant/acquirer QRs.
+        // Exact pass-through mode:
+        // Preserve every original QR parameter unchanged.
         const params = new URLSearchParams();
         Object.entries(parsed.all || {}).forEach(([key, value]) => {
           if (value !== null && value !== undefined && value !== "") {
@@ -249,28 +249,25 @@
           }
         });
 
-        params.set("pa", parsed.pa);
-        params.set("pn", pn);
-        params.set("tn", tn);
-        params.set("cu", params.get("cu") || "INR");
+        // Ensure payee exists for manually entered VPA.
+        if (!params.get("pa")) params.set("pa", parsed.pa);
 
-        // Dynamic QR amount must remain the QR amount. For static QR, use entered amount.
-        if (parsed.am) {
-          params.set("am", Number(parsed.am).toFixed(2));
-        } else {
+        // Only fill payee name if the original QR does not already contain it.
+        if (!params.get("pn") && pn) params.set("pn", pn);
+
+        // Remove transaction note during this test to eliminate note-related variables.
+        params.delete("tn");
+
+        // Never overwrite original QR amount.
+        // Only add amount when the source did not provide one (static QR/manual VPA).
+        if (!params.get("am")) {
           params.set("am", amount.toFixed(2));
         }
 
-        // Merchant intents need a transaction reference. Preserve original tr; create one only if absent.
-        if (!params.get("tr")) {
-          params.set("tr", ("WEB" + Date.now().toString(36).toUpperCase()).slice(0, 35));
-        }
+        // Preserve original currency if present, otherwise INR.
+        if (!params.get("cu")) params.set("cu", "INR");
 
-        // Give intent apps a transaction reference URL if the QR did not already provide one.
-        if (!params.get("url")) {
-          params.set("url", window.location.origin + "/pay");
-        }
-
+        // Do NOT invent/replace tr, mc, url, mode, orgid, sign, purpose, or any other field.
         const link = window.location.origin + "/pay?" + params.toString();
         checkoutLink.value = link;
         resultAmount.textContent = "â‚¹" + amount.toFixed(2);
