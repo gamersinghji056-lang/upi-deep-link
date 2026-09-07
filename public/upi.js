@@ -32,11 +32,11 @@
     return head + (/[?&]$/.test(head) ? "" : "&") + key + "=" + encodeURIComponent(value) + (hash < 0 ? "" : raw.slice(hash));
   }
 
-  function fillEmpty(raw, key, value) {
+  function setField(raw, key, value) {
     const parsed = parse(raw);
     const entry = parsed.entries.find(e => e.key === key);
     if (!entry) return append(raw, key, value);
-    if (entry.rawValue !== "") return raw;
+    if (entry.value === String(value)) return raw;
 
     const hash = raw.indexOf("#");
     const head = hash < 0 ? raw : raw.slice(0, hash);
@@ -46,6 +46,14 @@
     const segments = head.slice(q + 1).split("&");
     segments[entry.index] = entry.rawKey + "=" + encodeURIComponent(value);
     return prefix + segments.join("&") + fragment;
+  }
+
+  function fillEmpty(raw, key, value) {
+    const parsed = parse(raw);
+    const entry = parsed.entries.find(e => e.key === key);
+    if (!entry) return append(raw, key, value);
+    if (entry.rawValue !== "") return raw;
+    return setField(raw, key, value);
   }
 
   function amount(value) {
@@ -63,7 +71,7 @@
   function mode(value) {
     if (value === "scan") return "amount_only";
     if (value === undefined || value === "") return "exact";
-    if (!["exact", "amount_only", "standard", "merchant_intent", "compat"].includes(value)) throw new Error("Unknown payment profile.");
+    if (!["exact", "amount_only", "standard", "merchant_intent", "compat", "web_intent"].includes(value)) throw new Error("Unknown payment profile.");
     return value;
   }
 
@@ -72,12 +80,22 @@
     const selected = mode(profile);
     if (selected === "exact") return raw;
 
+    const signed = parsed.entries.some(e => String(e.key || "").toLowerCase() === "sign");
     let final = raw;
-    if (selected === "compat") {
-      // Compatibility flow used by simple UPI-link pages: keep the merchant QR fields,
-      // fill only tn/am when they are missing or empty, and do not invent cu/tr/mc/mode/etc.
+
+    if (selected === "compat" || selected === "web_intent") {
       final = fillEmpty(final, "tn", String(note || "Payment"));
       final = fillEmpty(final, "am", amount(value));
+
+      if (selected === "web_intent") {
+        // UPI initiation mode must match the channel actually used. QR payloads commonly
+        // carry mode=01/02, while an app handoff/deep link is an Intent transaction (04).
+        // Never rewrite a signed payload because that would invalidate its signature.
+        if (signed && parse(final).fields.mode[0] !== "04") {
+          throw new Error("Signed QR cannot be converted from QR mode to intent mode. Use the issuer/provider intent.");
+        }
+        if (!signed) final = setField(final, "mode", "04");
+      }
     } else {
       if (!parsed.entries.some(e => e.key === "am")) final = append(final, "am", amount(value));
       if ((selected === "standard" || selected === "merchant_intent") && !parsed.entries.some(e => e.key === "cu")) {
@@ -88,7 +106,7 @@
       }
     }
 
-    if (final !== raw && parsed.entries.some(e => String(e.key || "").toLowerCase() === "sign")) {
+    if (final !== raw && signed) {
       throw new Error("Signed QR cannot be modified. Use EXACT or obtain a new intent from the provider.");
     }
     return final;
@@ -139,12 +157,12 @@
   }
 
   function manual(pa, pn, value, tn) {
-    const entries = [["pa", pa], ["pn", pn || "UPI Payment"], ["am", amount(value)], ["cu", "INR"]];
+    const entries = [["pa", pa], ["pn", pn || "UPI Payment"], ["am", amount(value)], ["cu", "INR"], ["mode", "04"]];
     if (tn) entries.push(["tn", tn]);
     const raw = "upi://pay?" + entries.map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
     parse(raw);
     return raw;
   }
 
-  return { parse, build, mode, amount, transactionRef, manual, targets, target, packages, androidIntent, phonepeNative, fillEmpty };
+  return { parse, build, mode, amount, transactionRef, manual, targets, target, packages, androidIntent, phonepeNative, fillEmpty, setField };
 });
