@@ -12,14 +12,21 @@
     return btoa(binary);
   }
 
-  function buildPhonePeNative(parsed, paymentId) {
+  function requirePayment(parsed) {
     const vpa = parsed.pa[0];
     const amount = Number(parsed.am[0]);
     if (!vpa) throw new Error("UPI ID is missing");
     if (!Number.isFinite(amount) || amount <= 0) throw new Error("Payment amount is missing");
+    return { vpa, amount };
+  }
 
-    const noteCandidate = parsed.tn[0] || paymentId || "Payment";
-    const note = String(noteCandidate).slice(0, 80);
+  function paymentNote(parsed, id) {
+    return String(parsed.tn[0] || id || "Payment").slice(0, 80);
+  }
+
+  function buildPhonePeNative(parsed, id) {
+    const { vpa, amount } = requirePayment(parsed);
+    const note = paymentNote(parsed, id);
     const payload = {
       contact: {
         cbsName: "",
@@ -46,6 +53,38 @@
       }
     };
     return "phonepe://native?data=" + encodeURIComponent(utf8Base64(JSON.stringify(payload))) + "&id=p2ppayment";
+  }
+
+  function buildPaytmUrl(parsed, id) {
+    const { vpa, amount } = requirePayment(parsed);
+    const note = paymentNote(parsed, id);
+    const params = new URLSearchParams({
+      featuretype: "money_transfer",
+      pa: vpa,
+      tr: note,
+      am: amount.toFixed(2),
+      pn: "VPAY",
+      tn: note
+    });
+    return "paytmmp://cash_wallet?" + params.toString();
+  }
+
+  function buildOtherUpiUrl(parsed, id) {
+    const { vpa, amount } = requirePayment(parsed);
+    const note = paymentNote(parsed, id);
+    const params = new URLSearchParams({
+      pa: vpa,
+      tn: note,
+      am: amount.toFixed(2),
+      cu: "INR",
+      pn: ""
+    });
+    return "upi://pay?" + params.toString();
+  }
+
+  function buildGooglePayUrl(parsed, id) {
+    const generic = buildOtherUpiUrl(parsed, id);
+    return "gpay://upi/pay?" + generic.slice(generic.indexOf("?") + 1);
   }
 
   try {
@@ -77,20 +116,31 @@
     $("loading").style.display = "none";
     $("payment").style.display = "block";
 
-    document.querySelector("button[data-app=\"phonepe\"]").addEventListener("click", () => {
-      try {
-        $("error").textContent = "";
-        if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) throw new Error("Payment link expired");
-        const phonePeUrl = buildPhonePeNative(parsed, paymentId);
-        if (diagnostics) {
-          diagnostics.lastLaunch = { app: "phonepe", scheme: "phonepe://native", paymentId };
-          $("debug").textContent = JSON.stringify(diagnostics, null, 2);
+    const launchers = {
+      phonepe: () => buildPhonePeNative(parsed, paymentId),
+      paytm: () => buildPaytmUrl(parsed, paymentId),
+      gpay: () => buildGooglePayUrl(parsed, paymentId),
+      other: () => buildOtherUpiUrl(parsed, paymentId)
+    };
+
+    for (const button of document.querySelectorAll("button[data-app]")) {
+      button.addEventListener("click", () => {
+        try {
+          $("error").textContent = "";
+          if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) throw new Error("Payment link expired");
+          const app = button.dataset.app;
+          if (!launchers[app]) throw new Error("Unsupported payment app");
+          const target = launchers[app]();
+          if (diagnostics) {
+            diagnostics.lastLaunch = { app, scheme: target.split(":")[0], paymentId };
+            $("debug").textContent = JSON.stringify(diagnostics, null, 2);
+          }
+          location.href = target;
+        } catch (error) {
+          $("error").textContent = error.message;
         }
-        location.href = phonePeUrl;
-      } catch (error) {
-        $("error").textContent = error.message;
-      }
-    });
+      });
+    }
 
     if (match && flags.get("diagnostics") === "1") {
       const response = await fetch("/api/payments/" + paymentId + "/diagnostics", { cache: "no-store" });
