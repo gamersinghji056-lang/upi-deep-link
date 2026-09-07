@@ -3,32 +3,34 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <title>UPI Checkout Link Generator</title>
+  <title>UPI Checkout Link Generator v4</title>
   <style>
     *{box-sizing:border-box}body{margin:0;background:#0b1020;color:#f6f8fc;font-family:Arial,sans-serif}
-    .wrap{width:min(900px,calc(100% - 24px));margin:0 auto;padding:28px 0 50px}
+    .wrap{width:min(920px,calc(100% - 24px));margin:0 auto;padding:28px 0 50px}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.card{background:#121a2b;border:1px solid #2a3852;border-radius:18px;padding:18px}
     h1{margin:0 0 8px}.muted{color:#9aa8be}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     label{display:block;margin:14px 0 6px;font-size:13px;font-weight:700}input,textarea{width:100%;background:#0b1220;color:#fff;border:1px solid #30415f;border-radius:12px;padding:12px;font-size:16px}
-    textarea{min-height:88px}.btn{border:0;border-radius:12px;padding:13px 16px;font-weight:800;cursor:pointer}.primary{width:100%;margin-top:16px;background:#6977ff;color:#fff}
-    .secondary{background:#1d2941;color:#fff}.msg{margin-top:10px;font-size:13px}.ok{color:#63dea5}.err{color:#ff8290}.result{display:none}
-    .debug{margin-top:12px;background:#0b1220;border:1px solid #263650;border-radius:12px;padding:10px;font:12px monospace;word-break:break-all;color:#bac7dc}
+    textarea{min-height:96px}.btn{border:0;border-radius:12px;padding:13px 16px;font-weight:800;cursor:pointer}.primary{width:100%;margin-top:16px;background:#6977ff;color:#fff}
+    .secondary{background:#1d2941;color:#fff}.msg{margin-top:10px;font-size:13px}.ok{color:#63dea5}.warn{color:#ffd166}.err{color:#ff8290}.result{display:none}
+    .debug{margin-top:12px;background:#0b1220;border:1px solid #263650;border-radius:12px;padding:10px;font:12px monospace;word-break:break-all;color:#bac7dc;white-space:pre-wrap}
+    .badge{display:inline-block;padding:5px 9px;border-radius:999px;background:#1d2941;color:#c9d5e8;font-size:12px;font-weight:700;margin-top:4px}
     @media(max-width:760px){.grid{grid-template-columns:1fr}.row{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
 <main class="wrap">
-  <h1>UPI Checkout Link Generator</h1>
-  <p class="muted">Clean test build using standard UPI payment parameters.</p>
+  <h1>UPI Checkout Link Generator v4</h1>
+  <p class="muted">Manual VPA uses a clean standard UPI URI. Merchant QR keeps the QR payload intact as far as possible.</p>
 
   <section class="grid">
     <form id="form" class="card">
-      <label>Upload UPI QR</label>
+      <label>Upload merchant UPI QR</label>
       <input id="qrFile" type="file" accept="image/*">
-      <div id="qrMsg" class="msg muted">Optional. Standard UPI QR only.</div>
+      <div id="qrMsg" class="msg muted">Recommended for merchant QR testing.</div>
 
       <label>UPI ID or full upi://pay URI</label>
       <textarea id="upiInput" placeholder="merchant@bank or upi://pay?pa=merchant@bank&pn=Merchant"></textarea>
+      <div id="modeBadge" class="badge">Mode: manual VPA</div>
 
       <div class="row">
         <div>
@@ -41,7 +43,7 @@
         </div>
       </div>
 
-      <label>Payment note (optional)</label>
+      <label>Payment note (manual VPA only, optional)</label>
       <input id="tn" maxlength="80" placeholder="Payment">
 
       <button class="btn primary" type="submit">Create Checkout Link</button>
@@ -70,39 +72,82 @@
   const $ = id => document.getElementById(id);
   const qrFile=$("qrFile"), qrMsg=$("qrMsg"), upiInput=$("upiInput"),
         pn=$("pn"), am=$("am"), tn=$("tn"), form=$("form"), msg=$("msg"),
-        result=$("result"), empty=$("empty"), checkout=$("checkout"), debug=$("debug");
+        result=$("result"), empty=$("empty"), checkout=$("checkout"), debug=$("debug"),
+        modeBadge=$("modeBadge");
 
-  function parseSource(raw){
+  function parseUpi(raw){
     raw=(raw||"").trim();
-    if(!raw) return null;
-
-    if(/^upi:\/\/pay\?/i.test(raw)){
-      try{
-        const u=new URL(raw);
-        return {
-          pa:(u.searchParams.get("pa")||"").trim(),
-          pn:(u.searchParams.get("pn")||"").trim(),
-          am:(u.searchParams.get("am")||"").trim(),
-          tn:(u.searchParams.get("tn")||"").trim()
-        };
-      }catch(e){ return null; }
-    }
-
-    if(/^[^\s@]+@[^\s@]+$/.test(raw)){
-      return {pa:raw,pn:"",am:"",tn:""};
-    }
-    return null;
+    if(!/^upi:\/\/pay\?/i.test(raw)) return null;
+    try{
+      const u=new URL(raw);
+      if(u.protocol!=="upi:" || u.hostname!=="pay") return null;
+      const all=[];
+      u.searchParams.forEach((value,key)=>all.push([key,value]));
+      return {
+        pa:(u.searchParams.get("pa")||"").trim(),
+        pn:(u.searchParams.get("pn")||"").trim(),
+        am:(u.searchParams.get("am")||"").trim(),
+        tn:(u.searchParams.get("tn")||"").trim(),
+        keys:all.map(x=>x[0]),
+        signed:all.some(x=>x[0].toLowerCase()==="sign")
+      };
+    }catch(e){ return null; }
   }
 
-  function buildStandardUpi(pa,pn,am,tn){
+  function isVpa(raw){
+    return /^[^\s@]+@[^\s@]+$/.test((raw||"").trim());
+  }
+
+  function hasParam(raw,key){
+    const qIndex=raw.indexOf("?");
+    if(qIndex<0) return false;
+    const hashIndex=raw.indexOf("#",qIndex);
+    const query=raw.slice(qIndex+1,hashIndex<0?raw.length:hashIndex);
+    return query.split("&").some(part=>{
+      const i=part.indexOf("=");
+      const k=(i<0?part:part.slice(0,i));
+      try{return decodeURIComponent(k.replace(/\+/g,"%20")).toLowerCase()===key.toLowerCase()}catch(_){return k.toLowerCase()===key.toLowerCase()}
+    });
+  }
+
+  function appendParamRaw(raw,key,value){
+    const hashIndex=raw.indexOf("#");
+    const beforeHash=hashIndex>=0?raw.slice(0,hashIndex):raw;
+    const hash=hashIndex>=0?raw.slice(hashIndex):"";
+    const sep=beforeHash.includes("?") ? (beforeHash.endsWith("?")||beforeHash.endsWith("&")?"":"&") : "?";
+    return beforeHash+sep+encodeURIComponent(key)+"="+encodeURIComponent(value)+hash;
+  }
+
+  function buildManualUpi(pa,name,amount,note){
     const p=new URLSearchParams();
     p.set("pa",pa);
-    p.set("pn",pn || "UPI Payment");
-    p.set("am",Number(am).toFixed(2));
+    p.set("pn",name || "UPI Payment");
+    p.set("am",Number(amount).toFixed(2));
     p.set("cu","INR");
-    if(tn) p.set("tn",tn);
-    return "upi://pay?" + p.toString();
+    if(note) p.set("tn",note);
+    return "upi://pay?"+p.toString();
   }
+
+  function toBase64Url(str){
+    const bytes=new TextEncoder().encode(str);
+    let binary="";
+    for(const b of bytes) binary+=String.fromCharCode(b);
+    return btoa(binary).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"");
+  }
+
+  function updateMode(){
+    const raw=upiInput.value.trim();
+    const parsed=parseUpi(raw);
+    if(parsed){
+      modeBadge.textContent=parsed.signed?"Mode: signed merchant QR (exact)":"Mode: merchant QR";
+      modeBadge.style.background=parsed.signed?"#503b12":"#183d34";
+    }else{
+      modeBadge.textContent="Mode: manual VPA";
+      modeBadge.style.background="#1d2941";
+    }
+  }
+
+  upiInput.addEventListener("input",updateMode);
 
   qrFile.addEventListener("change", async function(){
     const file=qrFile.files && qrFile.files[0];
@@ -113,14 +158,18 @@
       const hidden=document.getElementById("qr-hidden") || document.body.appendChild(Object.assign(document.createElement("div"),{id:"qr-hidden"}));
       hidden.style.display="none";
       const scanner=new Html5Qrcode("qr-hidden");
-      const decoded=await scanner.scanFile(file,true);
-      const parsed=parseSource(decoded);
+      const decoded=(await scanner.scanFile(file,true)).trim();
+      const parsed=parseUpi(decoded);
       if(!parsed || !parsed.pa) throw new Error("not standard upi");
       upiInput.value=decoded;
       if(parsed.pn) pn.value=parsed.pn;
       if(parsed.am) am.value=parsed.am;
       if(parsed.tn) tn.value=parsed.tn;
-      qrMsg.className="msg ok"; qrMsg.textContent="Detected: "+parsed.pa;
+      updateMode();
+      qrMsg.className=parsed.signed?"msg warn":"msg ok";
+      qrMsg.textContent=parsed.signed
+        ?"Signed QR detected. Payload will not be changed."
+        :"Merchant QR detected. Existing parameters will be preserved.";
     }catch(e){
       qrMsg.className="msg err"; qrMsg.textContent="Could not read a standard UPI QR.";
     }
@@ -128,33 +177,97 @@
 
   form.addEventListener("submit", function(e){
     e.preventDefault();
-    const parsed=parseSource(upiInput.value);
-    if(!parsed || !parsed.pa){
-      msg.className="msg err"; msg.textContent="Invalid UPI ID / QR URI."; return;
-    }
+    msg.textContent="";
+    const raw=upiInput.value.trim();
+    const parsed=parseUpi(raw);
+    const amountInput=Number(am.value.trim());
 
-    const amount=Number(am.value.trim() || parsed.am);
-    if(!Number.isFinite(amount) || amount<=0){
-      msg.className="msg err"; msg.textContent="Enter a valid amount."; return;
-    }
+    let finalUri="";
+    let source="manual";
+    let displayPa="";
+    let displayName="";
+    let displayAmount=amountInput;
+    let detail="";
 
-    const name=(pn.value.trim() || parsed.pn || "UPI Payment").slice(0,60);
-    const note=(tn.value.trim() || parsed.tn || "").slice(0,80);
-    const upiUri=buildStandardUpi(parsed.pa,name,amount,note);
+    if(parsed){
+      if(!parsed.pa || !isVpa(parsed.pa)){
+        msg.className="msg err"; msg.textContent="QR contains an invalid payee VPA."; return;
+      }
+
+      source="merchant";
+      displayPa=parsed.pa;
+      displayName=parsed.pn || pn.value.trim() || "UPI Payment";
+      const qrAmount=Number(parsed.am || "0");
+
+      if(parsed.signed){
+        finalUri=raw;
+        if(Number.isFinite(qrAmount) && qrAmount>0){
+          displayAmount=qrAmount;
+          if(Number.isFinite(amountInput) && amountInput>0 && Math.abs(amountInput-qrAmount)>0.0001){
+            msg.className="msg err";
+            msg.textContent="Signed QR amount cannot be changed. Use the amount already inside the QR.";
+            return;
+          }
+        }else{
+          displayAmount=0;
+          if(Number.isFinite(amountInput) && amountInput>0){
+            msg.className="msg err";
+            msg.textContent="This signed QR has no amount. Adding an amount would change the signed payload, so v4 will not modify it.";
+            return;
+          }
+        }
+        detail="SIGNED QR: raw payload kept unchanged.";
+      }else{
+        finalUri=raw;
+        if(Number.isFinite(qrAmount) && qrAmount>0){
+          displayAmount=qrAmount;
+          if(Number.isFinite(amountInput) && amountInput>0 && Math.abs(amountInput-qrAmount)>0.0001){
+            msg.className="msg err";
+            msg.textContent="This QR already contains an amount. v4 will not overwrite it.";
+            return;
+          }
+        }else{
+          if(!Number.isFinite(amountInput) || amountInput<=0){
+            msg.className="msg err"; msg.textContent="Enter an amount for this static QR."; return;
+          }
+          finalUri=appendParamRaw(finalUri,"am",amountInput.toFixed(2));
+          displayAmount=amountInput;
+        }
+
+        if(!hasParam(finalUri,"cu")){
+          finalUri=appendParamRaw(finalUri,"cu","INR");
+        }
+        detail="MERCHANT QR: original parameters preserved; only missing am/cu may be appended.";
+      }
+    }else{
+      if(!isVpa(raw)){
+        msg.className="msg err"; msg.textContent="Enter a valid UPI ID or upload/paste a full UPI QR URI."; return;
+      }
+      if(!Number.isFinite(amountInput) || amountInput<=0){
+        msg.className="msg err"; msg.textContent="Enter a valid amount."; return;
+      }
+      displayPa=raw;
+      displayName=(pn.value.trim() || "UPI Payment").slice(0,60);
+      displayAmount=amountInput;
+      finalUri=buildManualUpi(raw,displayName,amountInput,(tn.value.trim()||"").slice(0,80));
+      detail="MANUAL VPA: standard pa/pn/am/cu URI generated.";
+    }
 
     const q=new URLSearchParams();
-    q.set("upi",upiUri);
+    q.set("payload",toBase64Url(finalUri));
+    q.set("source",source);
     const link=location.origin+"/pay?"+q.toString();
 
     checkout.value=link;
-    $("summary").textContent="INR "+amount.toFixed(2)+" -> "+parsed.pa;
-    debug.textContent="Generated UPI URI: "+upiUri;
+    $("summary").textContent=(displayAmount>0?"INR "+displayAmount.toFixed(2)+" -> ":"")+displayPa;
+    debug.textContent=detail+"\n\nFinal UPI URI:\n"+finalUri;
     empty.style.display="none"; result.style.display="block";
-    msg.className="msg ok"; msg.textContent="Checkout created.";
+    msg.className="msg ok"; msg.textContent="Checkout created in "+source+" mode.";
   });
 
   $("copy").onclick=async()=>{await navigator.clipboard.writeText(checkout.value)};
   $("open").onclick=()=>{if(checkout.value) window.open(checkout.value,"_blank","noopener")};
+  updateMode();
 })();
 </script>
 </body>
