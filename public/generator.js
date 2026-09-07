@@ -25,8 +25,8 @@
       $("tn").value = parsed.tn[0] || "";
       $("qrMsg").className = "msg ok";
       $("qrMsg").textContent = parsed.am[0]
-        ? "UPI QR loaded. Existing QR amount will be used."
-        : "UPI QR loaded. Enter the payment amount below; it will be included in the UPI payment link.";
+        ? "Merchant QR loaded. Existing amount will be kept."
+        : "Merchant QR loaded. Enter the payment amount below.";
     } catch (error) {
       $("qrMsg").className = "msg err";
       $("qrMsg").textContent = "Could not read a standard UPI QR. " + error.message;
@@ -43,19 +43,15 @@
     try {
       let raw = scannedRaw ?? $("upiInput").value;
       let source = "merchant";
-      const amountInput = $("am").value.trim();
-      let parsedFields = fields(raw);
+      let profile = "merchant_intent";
 
-      if (!parsedFields) {
+      if (!fields(raw)) {
         if (/^\s*upi:/i.test(raw)) Upi.parse(raw);
         const vpa = raw.trim();
         if (!/^[^\s@]+@[^\s@]+$/.test(vpa)) throw new Error("Enter a valid UPI ID or full UPI URI.");
-        if (!amountInput) throw new Error("Enter payment amount.");
-        raw = Upi.manual(vpa, $("pn").value.trim(), amountInput, $("tn").value.trim());
+        raw = Upi.manual(vpa, $("pn").value.trim(), $("am").value.trim(), $("tn").value.trim());
         source = "manual";
-        parsedFields = fields(raw);
-      } else if (!parsedFields.am[0] && !amountInput) {
-        throw new Error("Enter payment amount.");
+        profile = "standard";
       }
 
       const response = await fetch("/api/payments", {
@@ -63,8 +59,8 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           upiUri: raw,
-          amount: amountInput,
-          profile: "standard",
+          amount: $("am").value.trim(),
+          profile,
           source
         })
       });
@@ -73,7 +69,9 @@
 
       $("checkout").value = new URL(data.url, location.origin).href;
       $("paymentId").textContent = data.id;
-      $("debug").textContent = "Short payment ID: " + data.id + "\nNormal UPI payment link\nAmount is included in the UPI URI when missing from the QR.\nCurrency is INR when missing.\nExisting merchant QR fields are preserved.\nExpires: " + data.expiresIn;
+      $("debug").textContent = source === "merchant"
+        ? "Short payment ID: " + data.id + "\nProfile: merchant intent\nAmount/currency are included when missing. A unique UPI transaction reference is added when the static QR has no tr. Existing merchant fields are preserved.\nExpires: " + data.expiresIn
+        : "Short payment ID: " + data.id + "\nProfile: manual VPA\nExpires: " + data.expiresIn;
       $("empty").style.display = "none";
       $("result").style.display = "block";
       $("msg").className = "msg ok";
