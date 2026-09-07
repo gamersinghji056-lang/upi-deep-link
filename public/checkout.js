@@ -69,7 +69,7 @@
     return "paytmmp://cash_wallet?" + params.toString();
   }
 
-  function buildOtherUpiUrl(parsed, id) {
+  function buildQrUpiUrl(parsed, id) {
     const { vpa, amount } = requirePayment(parsed);
     const note = paymentNote(parsed, id);
     const params = new URLSearchParams({
@@ -82,11 +82,6 @@
     return "upi://pay?" + params.toString();
   }
 
-  function buildGooglePayUrl(parsed, id) {
-    const generic = buildOtherUpiUrl(parsed, id);
-    return "gpay://upi/pay?" + generic.slice(generic.indexOf("?") + 1);
-  }
-
   function renderQr(text) {
     const box = $("upiQr");
     const status = $("qrStatus");
@@ -95,7 +90,7 @@
     box.innerHTML = "";
 
     if (typeof QRCode !== "function") {
-      if (status) status.textContent = "QR could not load. Use Other UPI Apps instead.";
+      if (status) status.textContent = "QR could not load. Copy the UPI ID instead.";
       download.disabled = true;
       return;
     }
@@ -147,23 +142,35 @@
 
     const parsed = Upi.parse(uri).fields;
     const amount = parsed.am[0];
+    const vpa = parsed.pa[0];
+
     $("amount").textContent = amount && Number.isFinite(Number(amount)) && Number(amount) > 0
       ? "INR " + Number(amount).toFixed(2)
       : "Amount unavailable";
     $("name").textContent = parsed.pn[0] || "UPI Payment";
-    $("vpa").textContent = parsed.pa[0];
+    $("vpa").textContent = vpa;
     $("paymentId").textContent = paymentId;
+    $("copyVpaValue").textContent = vpa;
     $("loading").style.display = "none";
     $("payment").style.display = "block";
 
-    const genericUpiUrl = buildOtherUpiUrl(parsed, paymentId);
-    renderQr(genericUpiUrl);
+    $("copyVpa").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(vpa);
+        const button = $("copyVpa");
+        const original = button.textContent;
+        button.textContent = "Copied";
+        setTimeout(() => { button.textContent = original; }, 1400);
+      } catch {
+        $("error").textContent = "Could not copy UPI ID";
+      }
+    });
+
+    renderQr(buildQrUpiUrl(parsed, paymentId));
 
     const launchers = {
       phonepe: () => buildPhonePeNative(parsed, paymentId),
-      paytm: () => buildPaytmUrl(parsed, paymentId),
-      gpay: () => buildGooglePayUrl(parsed, paymentId),
-      other: () => genericUpiUrl
+      paytm: () => buildPaytmUrl(parsed, paymentId)
     };
 
     for (const button of document.querySelectorAll("button[data-app]")) {
