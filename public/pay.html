@@ -19,7 +19,7 @@
 <div id="vpa" class="muted"></div>
 <div id="paymentId" class="badge"></div>
 <div class="apps"><button data-app="phonepe">Pay with PhonePe</button></div>
-<div class="hint">PhonePe only. Verify payee and amount inside PhonePe before entering your UPI PIN. Returning here does not confirm payment.</div>
+<div class="hint">PhonePe-only native launch test. On Android we first open PhonePe through its own payment scheme; the package-targeted UPI intent is used only if PhonePe does not open. Verify payee, amount and selected bank account before entering your UPI PIN.</div>
 <pre id="debug" class="debug" hidden></pre>
 </div>
 <div id="error" class="err"></div>
