@@ -11,8 +11,8 @@
 <body>
 <main class="wrap">
 <h1>WPAY UPI Payment Link</h1>
-<p class="muted">Upload a merchant UPI QR or enter a UPI ID, set the amount, and create a short payment link.</p>
-<div class="badge">NORMAL UPI FLOW</div>
+<p class="muted">Upload a merchant UPI QR, enter the amount and create a normal merchant UPI intent link.</p>
+<div class="badge">MERCHANT UPI INTENT</div>
 <section class="grid" style="margin-top:14px">
 <form id="form" class="card">
 <label>Upload merchant UPI QR</label>
@@ -24,7 +24,7 @@
 <div><label>Payee name</label><input id="pn" placeholder="Merchant"></div>
 <div><label>Amount INR</label><input id="am" inputmode="decimal" placeholder="11.00"></div>
 </div>
-<p class="muted">If the QR already contains an amount, that amount is kept. Otherwise the amount entered here is included in the payment URI.</p>
+<p class="muted">For a merchant QR, existing fields are preserved. If missing, amount/currency are added and a unique transaction reference is generated for the merchant intent. We do not invent MCC or signed merchant metadata.</p>
 <label>Payment note (manual VPA only)</label>
 <input id="tn" maxlength="80" placeholder="Payment">
 <button class="btn primary" id="createBtn" type="submit">Create UPI Payment Link</button>
