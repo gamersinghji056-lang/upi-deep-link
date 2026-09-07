@@ -32,6 +32,22 @@
     return head + (/[?&]$/.test(head) ? "" : "&") + key + "=" + encodeURIComponent(value) + (hash < 0 ? "" : raw.slice(hash));
   }
 
+  function fillEmpty(raw, key, value) {
+    const parsed = parse(raw);
+    const entry = parsed.entries.find(e => e.key === key);
+    if (!entry) return append(raw, key, value);
+    if (entry.rawValue !== "") return raw;
+
+    const hash = raw.indexOf("#");
+    const head = hash < 0 ? raw : raw.slice(0, hash);
+    const fragment = hash < 0 ? "" : raw.slice(hash);
+    const q = head.indexOf("?");
+    const prefix = head.slice(0, q + 1);
+    const segments = head.slice(q + 1).split("&");
+    segments[entry.index] = entry.rawKey + "=" + encodeURIComponent(value);
+    return prefix + segments.join("&") + fragment;
+  }
+
   function amount(value) {
     const text = String(value ?? "");
     if (!/^\d{1,12}(\.\d{1,2})?$/.test(text) || Number(text) <= 0) throw new Error("Enter a positive INR amount with at most two decimal places.");
@@ -47,25 +63,32 @@
   function mode(value) {
     if (value === "scan") return "amount_only";
     if (value === undefined || value === "") return "exact";
-    if (!["exact", "amount_only", "standard", "merchant_intent"].includes(value)) throw new Error("Unknown payment profile.");
+    if (!["exact", "amount_only", "standard", "merchant_intent", "compat"].includes(value)) throw new Error("Unknown payment profile.");
     return value;
   }
 
-  function build(raw, value, profile, ref) {
+  function build(raw, value, profile, ref, note) {
     const parsed = parse(raw);
     const selected = mode(profile);
     if (selected === "exact") return raw;
 
     let final = raw;
-    if (!parsed.entries.some(e => e.key === "am")) final = append(final, "am", amount(value));
-    if ((selected === "standard" || selected === "merchant_intent") && !parsed.entries.some(e => e.key === "cu")) {
-      final = append(final, "cu", "INR");
-    }
-    if (selected === "merchant_intent" && !parsed.entries.some(e => e.key === "tr")) {
-      final = append(final, "tr", transactionRef(ref));
+    if (selected === "compat") {
+      // Compatibility flow used by simple UPI-link pages: keep the merchant QR fields,
+      // fill only tn/am when they are missing or empty, and do not invent cu/tr/mc/mode/etc.
+      final = fillEmpty(final, "tn", String(note || "Payment"));
+      final = fillEmpty(final, "am", amount(value));
+    } else {
+      if (!parsed.entries.some(e => e.key === "am")) final = append(final, "am", amount(value));
+      if ((selected === "standard" || selected === "merchant_intent") && !parsed.entries.some(e => e.key === "cu")) {
+        final = append(final, "cu", "INR");
+      }
+      if (selected === "merchant_intent" && !parsed.entries.some(e => e.key === "tr")) {
+        final = append(final, "tr", transactionRef(ref));
+      }
     }
 
-    if (final !== raw && parsed.entries.some(e => e.key?.toLowerCase() === "sign")) {
+    if (final !== raw && parsed.entries.some(e => String(e.key || "").toLowerCase() === "sign")) {
       throw new Error("Signed QR cannot be modified. Use EXACT or obtain a new intent from the provider.");
     }
     return final;
@@ -123,5 +146,5 @@
     return raw;
   }
 
-  return { parse, build, mode, amount, transactionRef, manual, targets, target, packages, androidIntent, phonepeNative };
+  return { parse, build, mode, amount, transactionRef, manual, targets, target, packages, androidIntent, phonepeNative, fillEmpty };
 });
