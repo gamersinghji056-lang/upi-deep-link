@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -105,7 +105,7 @@
         <div id="empty" class="empty">Your checkout link will appear here.</div>
         <div id="result" class="result">
           <span class="pill">READY FOR TESTING</span>
-          <div id="resultAmount" class="amount">â‚¹0.00</div>
+          <div id="resultAmount" class="amount">₹0.00</div>
           <div id="resultName" class="meta"></div>
           <div id="resultUpi" class="meta"></div>
           <div class="linkbox">
@@ -154,13 +154,12 @@
               pn: url.searchParams.get("pn") || "",
               am: url.searchParams.get("am") || "",
               tn: url.searchParams.get("tn") || "",
-              tr: url.searchParams.get("tr") || "",
-              mc: url.searchParams.get("mc") || ""
+              tr: url.searchParams.get("tr") || ""
             };
           } catch (_) { return null; }
         }
         if (/^[^\s@]+@[^\s@]+$/.test(raw)) {
-          return { pa: raw, pn: "", am: "", tn: "", tr: "", mc: "" };
+          return { pa: raw, pn: "", am: "", tn: "", tr: "" };
         }
         return null;
       }
@@ -221,21 +220,20 @@
 
         const pn = (nameInput.value.trim() || parsed.pn || "UPI Payment").slice(0, 60);
         const tn = (noteInput.value.trim() || parsed.tn || "Payment").slice(0, 80);
-        const tr = parsed.tr || "";
+        const tr = parsed.tr || ("TEST" + Date.now().toString(36).toUpperCase());
 
         const params = new URLSearchParams({
           pa: parsed.pa,
           pn,
           am: amount.toFixed(2),
           tn,
+          tr,
           cu: "INR"
         });
-        if (tr) params.set("tr", tr);
-        if (parsed.mc) params.set("mc", parsed.mc);
 
         const link = window.location.origin + "/pay?" + params.toString();
         checkoutLink.value = link;
-        resultAmount.textContent = "â‚¹" + amount.toFixed(2);
+        resultAmount.textContent = "₹" + amount.toFixed(2);
         resultName.textContent = pn;
         resultUpi.textContent = parsed.pa;
         empty.style.display = "none";
@@ -268,4 +266,3 @@
   </script>
 </body>
 </html>
-

@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -44,7 +44,7 @@
     <div class="top"><div class="brand">Secure UPI Test Checkout</div></div>
     <section class="card">
       <div class="label">Amount to pay</div>
-      <div id="amount" class="amount">â‚¹0.00</div>
+      <div id="amount" class="amount">₹0.00</div>
       <div id="name" class="payee">UPI Payment</div>
       <div id="upi" class="upi"></div>
       <div class="divider"></div>
@@ -52,16 +52,16 @@
       <div class="label" style="margin-bottom:10px">Choose UPI app</div>
       <div class="apps">
         <button type="button" data-app="phonepe">
-          <span class="app-left"><span class="logo">Pe</span>PhonePe</span><span>â€º</span>
+          <span class="app-left"><span class="logo">Pe</span>PhonePe</span><span>›</span>
         </button>
         <button type="button" data-app="paytm">
-          <span class="app-left"><span class="logo">P</span>Paytm</span><span>â€º</span>
+          <span class="app-left"><span class="logo">P</span>Paytm</span><span>›</span>
         </button>
         <button type="button" data-app="gpay">
-          <span class="app-left"><span class="logo">G</span>Google Pay</span><span>â€º</span>
+          <span class="app-left"><span class="logo">G</span>Google Pay</span><span>›</span>
         </button>
         <button type="button" class="generic" data-app="upi">
-          <span class="app-left"><span class="logo">UPI</span>Other UPI Apps</span><span>â€º</span>
+          <span class="app-left"><span class="logo">UPI</span>Other UPI Apps</span><span>›</span>
         </button>
       </div>
       <div id="error" class="err"></div>
@@ -79,7 +79,7 @@
         pn: (q.get("pn") || "UPI Payment").trim(),
         am: (q.get("am") || "").trim(),
         tn: (q.get("tn") || "Payment").trim(),
-        tr: (q.get("tr") || "").trim(),
+        tr: (q.get("tr") || ("TEST" + Date.now().toString(36).toUpperCase())).trim(),
         cu: "INR"
       };
 
@@ -87,7 +87,7 @@
       const validVpa = /^[^\s@]+@[^\s@]+$/.test(data.pa);
       const validAmount = Number.isFinite(amount) && amount > 0;
 
-      document.getElementById("amount").textContent = validAmount ? "â‚¹" + amount.toFixed(2) : "Invalid amount";
+      document.getElementById("amount").textContent = validAmount ? "₹" + amount.toFixed(2) : "Invalid amount";
       document.getElementById("name").textContent = data.pn || "UPI Payment";
       document.getElementById("upi").textContent = data.pa || "Missing UPI ID";
 
@@ -103,37 +103,19 @@
         const p = new URLSearchParams({
           pa: data.pa,
           pn: data.pn,
+          tr: data.tr,
           tn: data.tn,
           am: amount.toFixed(2),
           cu: "INR"
         });
-        if (data.tr) p.set("tr", data.tr);
-        if (data.mc) p.set("mc", data.mc);
         return p.toString();
-      }
-
-      function isAndroid() {
-        return /Android/i.test(navigator.userAgent || "");
-      }
-
-      function androidIntent(packageName) {
-        const qs = queryString();
-        return "intent://pay?" + qs +
-          "#Intent;scheme=upi;package=" + packageName + ";end";
       }
 
       function targetFor(app) {
         const qs = queryString();
-
-        if (isAndroid()) {
-          if (app === "phonepe") return androidIntent("com.phonepe.app");
-          if (app === "paytm") return androidIntent("net.one97.paytm");
-          if (app === "gpay") return androidIntent("com.google.android.apps.nbu.paisa.user");
-        }
-
         if (app === "gpay") return "gpay://upi/pay?" + qs;
-
-        // Generic standard UPI URI is the safest cross-app fallback.
+        if (app === "phonepe") return "phonepe://pay?" + qs;
+        if (app === "paytm") return "paytmmp://pay?" + qs;
         return "upi://pay?" + qs;
       }
 
@@ -148,7 +130,7 @@
             setTimeout(() => {
               if (!document.hidden) {
                 error.style.display = "block";
-                error.textContent = "If the selected app did not open, try â€œOther UPI Appsâ€.";
+                error.textContent = "If the selected app did not open, try “Other UPI Apps”.";
               }
             }, 1800);
           }
@@ -158,4 +140,3 @@
   </script>
 </body>
 </html>
-
