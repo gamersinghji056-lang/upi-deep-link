@@ -87,6 +87,46 @@
     return "gpay://upi/pay?" + generic.slice(generic.indexOf("?") + 1);
   }
 
+  function renderQr(text) {
+    const box = $("upiQr");
+    const status = $("qrStatus");
+    const download = $("downloadQr");
+    if (!box || !download) return;
+    box.innerHTML = "";
+
+    if (typeof QRCode !== "function") {
+      if (status) status.textContent = "QR could not load. Use Other UPI Apps instead.";
+      download.disabled = true;
+      return;
+    }
+
+    new QRCode(box, {
+      text,
+      width: 240,
+      height: 240,
+      correctLevel: QRCode.CorrectLevel.M
+    });
+
+    if (status) status.textContent = "Scan this QR with any UPI app.";
+    download.disabled = false;
+    download.onclick = () => {
+      try {
+        const canvas = box.querySelector("canvas");
+        const image = box.querySelector("img");
+        const href = canvas ? canvas.toDataURL("image/png") : image?.src;
+        if (!href) throw new Error("QR image is not ready");
+        const link = document.createElement("a");
+        link.href = href;
+        link.download = (paymentId || "upi-payment") + "-qr.png";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      } catch (error) {
+        $("error").textContent = error.message || "Could not download QR";
+      }
+    };
+  }
+
   try {
     if (match) {
       paymentId = match[1];
@@ -116,11 +156,14 @@
     $("loading").style.display = "none";
     $("payment").style.display = "block";
 
+    const genericUpiUrl = buildOtherUpiUrl(parsed, paymentId);
+    renderQr(genericUpiUrl);
+
     const launchers = {
       phonepe: () => buildPhonePeNative(parsed, paymentId),
       paytm: () => buildPaytmUrl(parsed, paymentId),
       gpay: () => buildGooglePayUrl(parsed, paymentId),
-      other: () => buildOtherUpiUrl(parsed, paymentId)
+      other: () => genericUpiUrl
     };
 
     for (const button of document.querySelectorAll("button[data-app]")) {
