@@ -24,8 +24,8 @@
       $("am").value = parsed.am[0] || "";
       $("tn").value = parsed.tn[0] || "";
       $("qrMsg").className = "msg ok";
-      $("qrMsg").textContent = parsed.am[0]
-        ? "Merchant QR loaded. Existing amount will be kept."
+      $("qrMsg").textContent = parsed.mode[0] === "02"
+        ? "QR loaded. It is marked as QR mode (02); the payment link will correctly use intent mode (04)."
         : "Merchant QR loaded. Enter the payment amount below.";
     } catch (error) {
       $("qrMsg").className = "msg err";
@@ -43,7 +43,7 @@
     try {
       let raw = scannedRaw ?? $("upiInput").value;
       let source = "merchant";
-      let profile = "compat";
+      let profile = "web_intent";
 
       if (!fields(raw)) {
         if (/^\s*upi:/i.test(raw)) Upi.parse(raw);
@@ -71,8 +71,8 @@
       $("checkout").value = new URL(data.url, location.origin).href;
       $("paymentId").textContent = data.id;
       $("debug").textContent = source === "merchant"
-        ? "Short payment ID: " + data.id + "\nProfile: simple merchant link\nOriginal QR fields are preserved. Only empty/missing tn and am are filled. No cu or tr is added.\nExpires: " + data.expiresIn
-        : "Short payment ID: " + data.id + "\nProfile: manual VPA\nExpires: " + data.expiresIn;
+        ? "Short payment ID: " + data.id + "\nProfile: web UPI intent\nQR fields are preserved except initiation mode: unsigned QR mode is converted to mode=04 for an actual app Intent handoff. Empty/missing tn and am are filled. No cu or tr is invented.\nExpires: " + data.expiresIn
+        : "Short payment ID: " + data.id + "\nProfile: manual VPA / mode=04\nExpires: " + data.expiresIn;
       $("empty").style.display = "none";
       $("result").style.display = "block";
       $("msg").className = "msg ok";
