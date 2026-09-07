@@ -142,6 +142,7 @@
       const resultUpi = document.getElementById("resultUpi");
       const copyBtn = document.getElementById("copyBtn");
       const openBtn = document.getElementById("openBtn");
+      let scannedRawUpiUri = null;
 
       function parseUpi(value) {
         const raw = (value || "").trim();
@@ -209,7 +210,12 @@
             upiInput.value = decoded;
             return;
           }
+          scannedRawUpiUri = decoded.trim();
           hydrateFromParsed(parsed);
+
+          // Keep the full original UPI URI from the QR.
+          upiInput.value = scannedRawUpiUri;
+
           qrMsg.className = "msg ok";
           qrMsg.textContent = "UPI QR detected: " + parsed.pa;
         } catch (err) {
@@ -218,6 +224,11 @@
         }
       });
 
+      upiInput.addEventListener("input", () => {
+        if (scannedRawUpiUri && upiInput.value.trim() !== scannedRawUpiUri) {
+          scannedRawUpiUri = null;
+        }
+      });
       form.addEventListener("submit", (event) => {
         event.preventDefault();
         formMsg.className = "msg";
@@ -240,35 +251,36 @@
 
         const pn = (nameInput.value.trim() || parsed.pn || "UPI Payment").slice(0, 60);
 
-        // Exact pass-through mode:
-        // Preserve every original QR parameter unchanged.
-        const params = new URLSearchParams();
-        Object.entries(parsed.all || {}).forEach(([key, value]) => {
-          if (value !== null && value !== undefined && value !== "") {
-            params.set(key, String(value));
+        let rawUpiUri = scannedRawUpiUri || upiInput.value.trim();
+
+        if (!rawUpiUri.toLowerCase().startsWith("upi://")) {
+          const manual = new URLSearchParams();
+          manual.set("pa", parsed.pa);
+          if (pn) manual.set("pn", pn);
+          manual.set("am", amount.toFixed(2));
+          manual.set("cu", "INR");
+          rawUpiUri = "upi://pay?" + manual.toString();
+        } else {
+          const hasAmount = /(?:[?&])am=/i.test(rawUpiUri);
+          const hasCurrency = /(?:[?&])cu=/i.test(rawUpiUri);
+
+          if (!hasAmount) {
+            rawUpiUri += (rawUpiUri.includes("?") ? "&" : "?") +
+              "am=" + encodeURIComponent(amount.toFixed(2));
           }
-        });
 
-        // Ensure payee exists for manually entered VPA.
-        if (!params.get("pa")) params.set("pa", parsed.pa);
-
-        // Only fill payee name if the original QR does not already contain it.
-        if (!params.get("pn") && pn) params.set("pn", pn);
-
-        // Remove transaction note during this test to eliminate note-related variables.
-        params.delete("tn");
-
-        // Never overwrite original QR amount.
-        // Only add amount when the source did not provide one (static QR/manual VPA).
-        if (!params.get("am")) {
-          params.set("am", amount.toFixed(2));
+          if (!hasCurrency) {
+            rawUpiUri += (rawUpiUri.includes("?") ? "&" : "?") + "cu=INR";
+          }
         }
 
-        // Preserve original currency if present, otherwise INR.
-        if (!params.get("cu")) params.set("cu", "INR");
+        const checkoutParams = new URLSearchParams();
+        checkoutParams.set("upi", rawUpiUri);
+        checkoutParams.set("displayAmount", amount.toFixed(2));
+        checkoutParams.set("displayName", pn);
+        checkoutParams.set("displayPa", parsed.pa);
 
-        // Do NOT invent/replace tr, mc, url, mode, orgid, sign, purpose, or any other field.
-        const link = window.location.origin + "/pay?" + params.toString();
+        const link = window.location.origin + "/pay?" + checkoutParams.toString();
         checkoutLink.value = link;
         resultAmount.textContent = "â‚¹" + amount.toFixed(2);
         resultName.textContent = pn;

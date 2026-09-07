@@ -74,46 +74,45 @@
   <script>
     (() => {
       const q = new URLSearchParams(location.search);
-      const data = {};
-      q.forEach((value, key) => {
-        data[key] = value;
-      });
 
-      data.pa = (data.pa || "").trim();
-      data.pn = (data.pn || "UPI Payment").trim();
-      data.am = (data.am || "").trim();
-      data.tn = (data.tn || "Payment").trim();
-      data.tr = (data.tr || "").trim();
-      data.cu = (data.cu || "INR").trim() || "INR";
+      const rawUpiUri = (q.get("upi") || "").trim();
+      const displayAmount = Number(q.get("displayAmount") || "0");
+      const displayName = (q.get("displayName") || "UPI Payment").trim();
+      const displayPa = (q.get("displayPa") || "").trim();
 
-      const amount = Number(data.am);
-      const validVpa = /^[^\s@]+@[^\s@]+$/.test(data.pa);
+      let parsedUpi = null;
+      try {
+        if (rawUpiUri.toLowerCase().startsWith("upi://")) {
+          parsedUpi = new URL(rawUpiUri);
+        }
+      } catch (_) {}
+
+      const pa = parsedUpi ? (parsedUpi.searchParams.get("pa") || displayPa) : displayPa;
+      const pn = parsedUpi ? (parsedUpi.searchParams.get("pn") || displayName) : displayName;
+      const rawAmount = parsedUpi ? parsedUpi.searchParams.get("am") : null;
+      const amount = Number(rawAmount || displayAmount);
+
+      const validVpa = /^[^\s@]+@[^\s@]+$/.test(pa);
       const validAmount = Number.isFinite(amount) && amount > 0;
+      const validRawUri = /^upi:\/\/pay\?/i.test(rawUpiUri);
 
-      document.getElementById("amount").textContent = validAmount ? "â‚¹" + amount.toFixed(2) : "Invalid amount";
-      document.getElementById("name").textContent = data.pn || "UPI Payment";
-      document.getElementById("upi").textContent = data.pa || "Missing UPI ID";
+      document.getElementById("amount").textContent =
+        validAmount ? "\u20B9" + amount.toFixed(2) : "Invalid amount";
+      document.getElementById("name").textContent = pn || "UPI Payment";
+      document.getElementById("upi").textContent = pa || "Missing UPI ID";
 
       const error = document.getElementById("error");
-      if (!validVpa || !validAmount) {
+      if (!validRawUri || !validVpa || !validAmount) {
         error.style.display = "block";
         error.textContent = "This checkout link is missing valid UPI payment details.";
         document.querySelectorAll("button[data-app]").forEach(b => b.disabled = true);
         return;
       }
 
+      const rawQuery = rawUpiUri.substring(rawUpiUri.indexOf("?") + 1);
+
       function queryString() {
-        const p = new URLSearchParams(location.search);
-
-        // Exact pass-through: keep original merchant/acquirer parameters untouched.
-        p.delete("tn");
-
-        if (!p.get("pa")) p.set("pa", data.pa);
-        if (!p.get("pn") && data.pn) p.set("pn", data.pn);
-        if (!p.get("am")) p.set("am", amount.toFixed(2));
-        if (!p.get("cu")) p.set("cu", data.cu || "INR");
-
-        return p.toString();
+        return rawQuery;
       }
 
       function isAndroid() {
