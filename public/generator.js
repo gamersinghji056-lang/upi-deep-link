@@ -25,8 +25,8 @@
       $("tn").value = parsed.tn[0] || "";
       $("qrMsg").className = "msg ok";
       $("qrMsg").textContent = parsed.am[0]
-        ? "UPI QR loaded. RAW mode will send this QR exactly as decoded, including its existing amount."
-        : "UPI QR loaded. RAW mode will send this QR exactly as decoded; enter the amount inside PhonePe.";
+        ? "UPI QR loaded. Existing QR amount will be used."
+        : "UPI QR loaded. Enter the payment amount below; it will be included in the UPI payment link.";
     } catch (error) {
       $("qrMsg").className = "msg err";
       $("qrMsg").textContent = "Could not read a standard UPI QR. " + error.message;
@@ -43,15 +43,19 @@
     try {
       let raw = scannedRaw ?? $("upiInput").value;
       let source = "merchant";
-      let profile = "exact";
+      const amountInput = $("am").value.trim();
+      let parsedFields = fields(raw);
 
-      if (!fields(raw)) {
+      if (!parsedFields) {
         if (/^\s*upi:/i.test(raw)) Upi.parse(raw);
         const vpa = raw.trim();
         if (!/^[^\s@]+@[^\s@]+$/.test(vpa)) throw new Error("Enter a valid UPI ID or full UPI URI.");
-        raw = Upi.manual(vpa, $("pn").value.trim(), $("am").value.trim(), $("tn").value.trim());
+        if (!amountInput) throw new Error("Enter payment amount.");
+        raw = Upi.manual(vpa, $("pn").value.trim(), amountInput, $("tn").value.trim());
         source = "manual";
-        profile = "standard";
+        parsedFields = fields(raw);
+      } else if (!parsedFields.am[0] && !amountInput) {
+        throw new Error("Enter payment amount.");
       }
 
       const response = await fetch("/api/payments", {
@@ -59,8 +63,8 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           upiUri: raw,
-          amount: $("am").value.trim(),
-          profile,
+          amount: amountInput,
+          profile: "standard",
           source
         })
       });
@@ -69,19 +73,17 @@
 
       $("checkout").value = new URL(data.url, location.origin).href;
       $("paymentId").textContent = data.id;
-      $("debug").textContent = source === "merchant"
-        ? "Short payment ID: " + data.id + "\nApp: PhonePe only\nProfile: RAW QR / EXACT\nThe merchant UPI URI is stored exactly as supplied. No am/cu/tr/mc/url/mode/orgid/sign is added or changed.\nIf the QR has no amount, enter the amount inside PhonePe.\nExpires: " + data.expiresIn
-        : "Short payment ID: " + data.id + "\nApp: PhonePe only\nProfile: manual VPA\nAmount/currency come from the manual payment form.\nExpires: " + data.expiresIn;
+      $("debug").textContent = "Short payment ID: " + data.id + "\nNormal UPI payment link\nAmount is included in the UPI URI when missing from the QR.\nCurrency is INR when missing.\nExisting merchant QR fields are preserved.\nExpires: " + data.expiresIn;
       $("empty").style.display = "none";
       $("result").style.display = "block";
       $("msg").className = "msg ok";
-      $("msg").textContent = source === "merchant" ? "PhonePe RAW QR test link created." : "PhonePe payment link created.";
+      $("msg").textContent = "UPI payment link created.";
     } catch (error) {
       $("msg").className = "msg err";
       $("msg").textContent = error.message;
     } finally {
       $("createBtn").disabled = false;
-      $("createBtn").textContent = "Create PhonePe RAW QR Link";
+      $("createBtn").textContent = "Create UPI Payment Link";
     }
   });
 
