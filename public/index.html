@@ -25,10 +25,10 @@
 </div>
 <label>Payment profile</label>
 <select id="profile">
-<option value="scan" selected>Scan-equivalent (recommended)</option>
-<option value="exact">Exact QR (no modification)</option>
-<option value="standard">Standard UPI intent</option>
-</select>
+<option value="exact" selected>MODE A - EXACT (baseline, no changes)</option>
+<option value="amount_only">MODE B - AMOUNT ONLY (append if missing)</option>
+<option value="standard">MODE C - STANDARD MINIMAL (missing amount/INR)</option>
+</select><p class="muted">EXACT leaves amount entry to the UPI app when the QR has no amount. Signed QRs cannot be modified. These modes do not authorize a merchant web intent.</p>
 <label>Payment note (manual VPA only)</label>
 <input id="tn" maxlength="80" placeholder="Payment">
 <button class="btn primary" id="createBtn" type="submit">Create Short Payment Link</button>
@@ -47,17 +47,6 @@
 </section>
 </main>
 <script src="/vendor/html5-qrcode/html5-qrcode.min.js"></script>
-<script>
-(function(){
-const $=id=>document.getElementById(id);const qrFile=$("qrFile"),qrMsg=$("qrMsg"),upiInput=$("upiInput"),pn=$("pn"),am=$("am"),tn=$("tn"),profile=$("profile"),form=$("form"),msg=$("msg"),result=$("result"),empty=$("empty"),checkout=$("checkout"),debug=$("debug"),createBtn=$("createBtn");
-function isVpa(v){return /^[^\s@]+@[^\s@]+$/.test((v||"").trim())}
-function parseUpi(raw){try{const u=new URL((raw||"").trim());if(u.protocol!=="upi:"||u.hostname!=="pay")return null;return{pa:(u.searchParams.get("pa")||"").trim(),pn:(u.searchParams.get("pn")||"").trim(),am:(u.searchParams.get("am")||"").trim(),tn:(u.searchParams.get("tn")||"").trim()}}catch{return null}}
-function buildManual(pa,name,amount,note){const p=new URLSearchParams();p.set("pa",pa);p.set("pn",name||"UPI Payment");p.set("am",Number(amount).toFixed(2));p.set("cu","INR");if(note)p.set("tn",note);return"upi://pay?"+p.toString()}
-qrFile.addEventListener("change",async()=>{const file=qrFile.files&&qrFile.files[0];if(!file)return;qrMsg.className="msg muted";qrMsg.textContent="Reading QR...";try{const hidden=document.getElementById("qr-hidden")||document.body.appendChild(Object.assign(document.createElement("div"),{id:"qr-hidden"}));hidden.style.display="none";const scanner=new Html5Qrcode("qr-hidden");const decoded=(await scanner.scanFile(file,true)).trim();const p=parseUpi(decoded);if(!p||!p.pa)throw new Error();upiInput.value=decoded;if(p.pn)pn.value=p.pn;if(p.am)am.value=p.am;if(p.tn)tn.value=p.tn;qrMsg.className="msg ok";qrMsg.textContent="UPI QR loaded."}catch{qrMsg.className="msg err";qrMsg.textContent="Could not read a standard UPI QR."}});
-form.addEventListener("submit",async e=>{e.preventDefault();msg.textContent="";createBtn.disabled=true;createBtn.textContent="Creating...";try{let raw=upiInput.value.trim();let source="merchant";let parsed=parseUpi(raw);if(!parsed){if(!isVpa(raw))throw new Error("Enter a valid UPI ID or full UPI URI.");const n=Number(am.value);if(!Number.isFinite(n)||n<=0)throw new Error("Enter a valid amount.");raw=buildManual(raw,pn.value.trim(),n,tn.value.trim());source="manual"}else if(!isVpa(parsed.pa)){throw new Error("QR contains an invalid VPA.")}
-const response=await fetch("/api/payments",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({upiUri:raw,amount:am.value.trim(),profile:profile.value,source})});const data=await response.json();if(!response.ok)throw new Error(data.error||"Could not create payment link");checkout.value=data.url;$("paymentId").textContent=data.id;debug.textContent="Short payment ID: "+data.id+"\nProfile: "+profile.value+"\nExpires: "+data.expiresIn+"\n\nThe UPI payload is stored server-side and is no longer exposed in the checkout URL.";empty.style.display="none";result.style.display="block";msg.className="msg ok";msg.textContent="Short payment link created."}catch(err){msg.className="msg err";msg.textContent=err.message||"Could not create payment link"}finally{createBtn.disabled=false;createBtn.textContent="Create Short Payment Link"}});
-$("copy").onclick=async()=>navigator.clipboard.writeText(checkout.value);$("open").onclick=()=>{if(checkout.value)window.open(checkout.value,"_blank","noopener")};
-})();
-</script>
+<script src="/upi.js"></script><script src="/generator.js"></script>
 </body>
 </html>

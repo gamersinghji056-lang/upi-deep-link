@@ -5,7 +5,9 @@
   "description": "UPI checkout with persistent short payment links",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node scripts/test.js",
+    "check": "node scripts/check.js"
   },
   "engines": {
     "node": ">=20"
@@ -14,5 +16,8 @@
     "express": "^5.1.0",
     "html5-qrcode": "^2.3.8",
     "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "embedded-postgres": "^18.4.0-beta.17"
   }
 }

@@ -24,35 +24,12 @@
 <button data-app="gpay">Google Pay</button>
 <button data-app="paytm">Paytm</button>
 </div>
-<div class="hint">Use “Pay by any UPI App” first. App-specific buttons only target the selected app.</div>
-<div id="debug" class="debug"></div>
+<div class="hint">Choose a UPI app and verify the payee and amount there. Returning here does not confirm payment. If the app declines, use the original merchant QR or contact the merchant.</div>
+<pre id="debug" class="debug" hidden></pre>
 </div>
 <div id="error" class="err"></div>
 </section>
 </main>
-<script>
-(async function(){
-const error=document.getElementById("error"),loading=document.getElementById("loading"),payment=document.getElementById("payment");
-const match=location.pathname.match(/^\/pay\/(WP[A-Za-z0-9]{8})$/);let upiUri="",paymentId="",profile="";
-if(match){
-  paymentId=match[1];
-  try{const r=await fetch("/api/payments/"+encodeURIComponent(paymentId),{cache:"no-store"});const data=await r.json();if(!r.ok)throw new Error(data.error||"Could not load payment");upiUri=data.upiUri;profile=data.profile||""}catch(e){loading.style.display="none";error.textContent=e.message||"Payment link unavailable";return}
-}else{
-  const q=new URLSearchParams(location.search);const payload=(q.get("payload")||"").trim();
-  function fromBase64Url(value){const normalized=value.replace(/-/g,"+").replace(/_/g,"/");const padded=normalized+"=".repeat((4-normalized.length%4)%4);const binary=atob(padded);const bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);return new TextDecoder().decode(bytes)}
-  if(payload){try{upiUri=fromBase64Url(payload).trim()}catch{}}
-  if(!upiUri)upiUri=(q.get("upi")||"").trim();
-  paymentId="Legacy link";profile=q.get("profile")||"legacy";
-}
-let u=null;try{u=new URL(upiUri)}catch{}
-if(!u||u.protocol!=="upi:"||u.hostname!=="pay"){loading.style.display="none";error.textContent="Invalid or unavailable UPI payment link.";return}
-const pa=(u.searchParams.get("pa")||"").trim(),pn=(u.searchParams.get("pn")||"UPI Payment").trim(),rawAmount=(u.searchParams.get("am")||"").trim(),am=rawAmount?Number(rawAmount):0;
-if(!/^[^\s@]+@[^\s@]+$/.test(pa)){loading.style.display="none";error.textContent="Invalid VPA in payment URI.";return}
-document.getElementById("amount").textContent=Number.isFinite(am)&&am>0?"INR "+am.toFixed(2):"Amount in UPI app";document.getElementById("name").textContent=pn;document.getElementById("vpa").textContent=pa;document.getElementById("paymentId").textContent=paymentId;document.getElementById("debug").textContent="Payment ID: "+paymentId+"\nProfile: "+profile+"\n\nExact UPI URI sent to app:\n"+upiUri;loading.style.display="none";payment.style.display="block";
-const queryIndex=upiUri.indexOf("?"),hashIndex=upiUri.indexOf("#",queryIndex),query=upiUri.slice(queryIndex+1,hashIndex<0?upiUri.length:hashIndex);const packages={phonepe:"com.phonepe.app",gpay:"com.google.android.apps.nbu.paisa.user",paytm:"net.one97.paytm"};
-function isAndroid(){return/Android/i.test(navigator.userAgent||"")}function isIOS(){return/iPhone|iPad|iPod/i.test(navigator.userAgent||"")}function androidIntent(pkg){const fallback=encodeURIComponent("https://play.google.com/store/apps/details?id="+pkg);return"intent://pay?"+query+"#Intent;scheme=upi;package="+pkg+";S.browser_fallback_url="+fallback+";end"}function iosTarget(app){if(app==="gpay")return"gpay://upi/pay?"+query;if(app==="phonepe")return"phonepe://pay?"+query;if(app==="paytm")return"paytmmp://pay?"+query;return upiUri}function target(app){if(app==="generic")return upiUri;if(isAndroid())return androidIntent(packages[app]);if(isIOS())return iosTarget(app);return upiUri}
-document.querySelectorAll("button[data-app]").forEach(btn=>btn.addEventListener("click",()=>{error.textContent="";location.href=target(btn.dataset.app)}));
-})();
-</script>
+<script src="/upi.js"></script><script src="/checkout.js"></script>
 </body>
 </html>
