@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Pay via UPI</title>
+<title>Pay with PhonePe</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#fff;font-family:Arial,sans-serif}.wrap{width:min(480px,calc(100% - 24px));margin:0 auto;padding:28px 0}.card{background:#121a2b;border:1px solid #2a3852;border-radius:20px;padding:20px}.amount{font-size:42px;font-weight:900;margin:8px 0}.muted{color:#9aa8be;word-break:break-all}.apps{display:grid;gap:10px;margin-top:18px}button{width:100%;min-height:54px;border:1px solid #30415f;border-radius:14px;background:#1a2640;color:#fff;font-size:16px;font-weight:800;cursor:pointer}.generic{background:#6574ff}.err{margin-top:12px;color:#ff8794}.debug{margin-top:14px;padding:10px;border-radius:12px;background:#0b1220;color:#b8c5d9;font:11px monospace;word-break:break-all;white-space:pre-wrap}.badge{display:inline-block;margin-top:8px;padding:5px 9px;border-radius:999px;background:#1d2941;color:#c9d5e8;font-size:12px;font-weight:700}.hint{margin-top:12px;font-size:12px;color:#9aa8be}.loading{padding:18px 0;color:#9aa8be}
+*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#fff;font-family:Arial,sans-serif}.wrap{width:min(480px,calc(100% - 24px));margin:0 auto;padding:28px 0}.card{background:#121a2b;border:1px solid #2a3852;border-radius:20px;padding:20px}.amount{font-size:42px;font-weight:900;margin:8px 0}.muted{color:#9aa8be;word-break:break-all}.apps{display:grid;gap:10px;margin-top:18px}button{width:100%;min-height:56px;border:0;border-radius:14px;background:#6d4aff;color:#fff;font-size:17px;font-weight:900;cursor:pointer}.err{margin-top:12px;color:#ff8794}.debug{margin-top:14px;padding:10px;border-radius:12px;background:#0b1220;color:#b8c5d9;font:11px monospace;word-break:break-all;white-space:pre-wrap}.badge{display:inline-block;margin-top:8px;padding:5px 9px;border-radius:999px;background:#281c48;color:#d9cbff;font-size:12px;font-weight:800}.hint{margin-top:12px;font-size:12px;color:#9aa8be}.loading{padding:18px 0;color:#9aa8be}
 </style>
 </head>
 <body>
@@ -18,13 +18,8 @@
 <div id="name"></div>
 <div id="vpa" class="muted"></div>
 <div id="paymentId" class="badge"></div>
-<div class="apps">
-<button data-app="generic" class="generic">Pay by any UPI App</button>
-<button data-app="phonepe">PhonePe</button>
-<button data-app="gpay">Google Pay</button>
-<button data-app="paytm">Paytm</button>
-</div>
-<div class="hint">Choose a UPI app and verify the payee and amount there. Returning here does not confirm payment. If the app declines, use the original merchant QR or contact the merchant.</div>
+<div class="apps"><button data-app="phonepe">Pay with PhonePe</button></div>
+<div class="hint">PhonePe only. Verify payee and amount inside PhonePe before entering your UPI PIN. Returning here does not confirm payment.</div>
 <pre id="debug" class="debug" hidden></pre>
 </div>
 <div id="error" class="err"></div>
