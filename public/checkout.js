@@ -4,6 +4,52 @@
   const flags = new URLSearchParams(location.search);
   const match = location.pathname.match(/^\/pay\/(WP[A-Za-z0-9]{8})$/);
   let uri, expiresAt, paymentId = "Legacy link", diagnostics = null;
+
+  function isAndroid() {
+    return /Android/i.test(navigator.userAgent || "");
+  }
+
+  function launchPhonePeAndroid(raw) {
+    const primary = Upi.phonepeNative(raw);
+    const fallback = Upi.androidIntent(raw, "phonepe");
+    if (!primary) {
+      location.href = fallback || raw;
+      return;
+    }
+
+    let leftPage = false;
+    let timer = null;
+
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        leftPage = true;
+        cleanup();
+      }
+    };
+    const onPageHide = () => {
+      leftPage = true;
+      cleanup();
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onPageHide);
+
+    timer = setTimeout(() => {
+      cleanup();
+      if (!leftPage && !document.hidden && fallback) location.href = fallback;
+    }, 1600);
+
+    // Primary experiment: enter PhonePe through its own scheme while preserving
+    // the payment query byte-for-byte. If it does not open, the timer falls back
+    // to the package-targeted Android UPI intent.
+    location.href = primary;
+  }
+
   try {
     if (match) {
       paymentId = match[1];
@@ -19,31 +65,42 @@
         const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
         const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
         uri = new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(atob(padded), c => c.charCodeAt(0)));
-      } else uri = flags.get("upi") || ""; // Decode only the legacy outer envelope once.
+      } else uri = flags.get("upi") || "";
     }
+
     const parsed = Upi.parse(uri).fields;
     const amount = parsed.am[0];
-    $("amount").textContent = amount && Number.isFinite(Number(amount)) && Number(amount) > 0 ? (parsed.cu[0] || "INR") + " " + Number(amount).toFixed(2) : "Amount in UPI app";
+    $("amount").textContent = amount && Number.isFinite(Number(amount)) && Number(amount) > 0
+      ? (parsed.cu[0] || "INR") + " " + Number(amount).toFixed(2)
+      : "Amount in PhonePe";
     $("name").textContent = parsed.pn[0] || "UPI Payment";
     $("vpa").textContent = parsed.pa[0];
     $("paymentId").textContent = paymentId;
     $("loading").style.display = "none";
     $("payment").style.display = "block";
 
-    document.querySelectorAll("button[data-app]").forEach(button => button.addEventListener("click", () => {
+    document.querySelector("button[data-app=\"phonepe\"]").addEventListener("click", () => {
       try {
         $("error").textContent = "";
         if (expiresAt && new Date(expiresAt).getTime() <= Date.now()) throw new Error("Payment link expired");
-        const target = Upi.target(uri, button.dataset.app, navigator.userAgent || "");
-        const serialized = new URL(target).href;
+
         if (diagnostics) {
-          diagnostics.lastLaunch = { app: button.dataset.app, assignedUri: target, browserSerializedUri: serialized, unchanged: serialized === target };
+          diagnostics.lastLaunch = {
+            app: "phonepe",
+            android: isAndroid(),
+            primary: isAndroid() ? Upi.phonepeNative(uri) : Upi.target(uri, "phonepe", navigator.userAgent || ""),
+            fallback: isAndroid() ? Upi.androidIntent(uri, "phonepe") : null
+          };
           $("debug").textContent = JSON.stringify(diagnostics, null, 2);
         }
-        if (serialized !== target) throw new Error("The browser would change this URI. Use the original merchant QR or request a correctly encoded URI from its issuer.");
-        location.href = target; // Synchronous user gesture; no fetch/timer before launch.
-      } catch (error) { $("error").textContent = error.message; }
-    }));
+
+        if (isAndroid()) launchPhonePeAndroid(uri);
+        else location.href = Upi.target(uri, "phonepe", navigator.userAgent || "");
+      } catch (error) {
+        $("error").textContent = error.message;
+      }
+    });
+
     if (match && flags.get("diagnostics") === "1") {
       const response = await fetch("/api/payments/" + paymentId + "/diagnostics", { cache: "no-store" });
       if (response.ok) {
