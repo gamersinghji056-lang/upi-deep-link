@@ -3,35 +3,35 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>WPAY PhonePe RAW QR Test</title>
+<title>WPAY UPI Payment Link</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#f6f8fc;font-family:Arial,sans-serif}.wrap{width:min(920px,calc(100% - 24px));margin:0 auto;padding:28px 0 50px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.card{background:#121a2b;border:1px solid #2a3852;border-radius:18px;padding:18px}h1{margin:0 0 8px}.muted{color:#9aa8be}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}label{display:block;margin:14px 0 6px;font-size:13px;font-weight:700}input,textarea{width:100%;background:#0b1220;color:#fff;border:1px solid #30415f;border-radius:12px;padding:12px;font-size:16px}textarea{min-height:96px}.btn{border:0;border-radius:12px;padding:13px 16px;font-weight:800;cursor:pointer}.primary{width:100%;margin-top:16px;background:#6d4aff;color:#fff}.secondary{background:#1d2941;color:#fff}.msg{margin-top:10px;font-size:13px}.ok{color:#63dea5}.err{color:#ff8290}.result{display:none}.debug{margin-top:12px;background:#0b1220;border:1px solid #263650;border-radius:12px;padding:10px;font:12px monospace;word-break:break-all;color:#bac7dc;white-space:pre-wrap}.short{font-size:18px;font-weight:800}.phonepe{display:inline-block;margin-top:6px;padding:6px 10px;border-radius:999px;background:#281c48;color:#d9cbff;font-size:12px;font-weight:800}@media(max-width:760px){.grid{grid-template-columns:1fr}.row{grid-template-columns:1fr}}
+*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#f6f8fc;font-family:Arial,sans-serif}.wrap{width:min(920px,calc(100% - 24px));margin:0 auto;padding:28px 0 50px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.card{background:#121a2b;border:1px solid #2a3852;border-radius:18px;padding:18px}h1{margin:0 0 8px}.muted{color:#9aa8be}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}label{display:block;margin:14px 0 6px;font-size:13px;font-weight:700}input,textarea{width:100%;background:#0b1220;color:#fff;border:1px solid #30415f;border-radius:12px;padding:12px;font-size:16px}textarea{min-height:96px}.btn{border:0;border-radius:12px;padding:13px 16px;font-weight:800;cursor:pointer}.primary{width:100%;margin-top:16px;background:#6d4aff;color:#fff}.secondary{background:#1d2941;color:#fff}.msg{margin-top:10px;font-size:13px}.ok{color:#63dea5}.err{color:#ff8290}.result{display:none}.debug{margin-top:12px;background:#0b1220;border:1px solid #263650;border-radius:12px;padding:10px;font:12px monospace;word-break:break-all;color:#bac7dc;white-space:pre-wrap}.short{font-size:18px;font-weight:800}.badge{display:inline-block;margin-top:6px;padding:6px 10px;border-radius:999px;background:#1d2941;color:#dce6f6;font-size:12px;font-weight:800}@media(max-width:760px){.grid{grid-template-columns:1fr}.row{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <main class="wrap">
-<h1>WPAY PhonePe RAW QR Test</h1>
-<p class="muted">This test sends the merchant UPI QR exactly as decoded. No amount, currency, transaction reference or merchant metadata is added to a merchant QR.</p>
-<div class="phonepe">PHONEPE ONLY · RAW QR</div>
+<h1>WPAY UPI Payment Link</h1>
+<p class="muted">Upload a merchant UPI QR or enter a UPI ID, set the amount, and create a short payment link.</p>
+<div class="badge">NORMAL UPI FLOW</div>
 <section class="grid" style="margin-top:14px">
 <form id="form" class="card">
 <label>Upload merchant UPI QR</label>
 <input id="qrFile" type="file" accept="image/*">
-<div id="qrMsg" class="msg muted">Upload the same QR that succeeds when scanned directly in PhonePe.</div>
+<div id="qrMsg" class="msg muted">Upload the merchant QR you want to use.</div>
 <label>UPI ID or full upi://pay URI</label>
 <textarea id="upiInput" placeholder="merchant@bank or upi://pay?pa=merchant@bank&pn=Merchant"></textarea>
 <div class="row">
 <div><label>Payee name</label><input id="pn" placeholder="Merchant"></div>
-<div><label>Amount INR</label><input id="am" inputmode="decimal" placeholder="Only for manual VPA"></div>
+<div><label>Amount INR</label><input id="am" inputmode="decimal" placeholder="11.00"></div>
 </div>
-<p class="muted"><strong>Merchant QR/full UPI URI:</strong> amount field above is ignored by RAW mode unless the amount already exists inside the QR itself. If the QR has no amount, enter it inside PhonePe. <strong>Manual VPA:</strong> amount is required.</p>
+<p class="muted">If the QR already contains an amount, that amount is kept. Otherwise the amount entered here is included in the payment URI.</p>
 <label>Payment note (manual VPA only)</label>
 <input id="tn" maxlength="80" placeholder="Payment">
-<button class="btn primary" id="createBtn" type="submit">Create PhonePe RAW QR Link</button>
+<button class="btn primary" id="createBtn" type="submit">Create UPI Payment Link</button>
 <div id="msg" class="msg"></div>
 </form>
 <section class="card">
-<h3>Generated PhonePe link</h3>
+<h3>Generated payment link</h3>
 <div id="empty" class="muted">No payment link created yet.</div>
 <div id="result" class="result">
 <p class="short" id="paymentId"></p>
