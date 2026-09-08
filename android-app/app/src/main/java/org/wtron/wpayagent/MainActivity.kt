@@ -266,6 +266,7 @@ class MainActivity : Activity() {
                 CreditRetryScheduler.enqueue(this)
                 BackgroundMonitorService.start(this)
                 runOnUiThread {
+                    BackgroundMonitorService.requestBatteryOptimizationExemption(this@MainActivity)
                     toast("Device connected successfully.")
                     openMonitor()
                 }

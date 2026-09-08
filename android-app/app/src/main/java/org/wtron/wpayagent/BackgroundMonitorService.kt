@@ -12,6 +12,9 @@ import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
+import android.provider.Settings
+import android.net.Uri
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -49,6 +52,23 @@ class BackgroundMonitorService : Service() {
 
         fun stop(context: Context) {
             context.applicationContext.stopService(Intent(context.applicationContext, BackgroundMonitorService::class.java))
+        }
+
+        fun requestBatteryOptimizationExemption(context: Context) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+            val app = context.applicationContext
+            val power = app.getSystemService(PowerManager::class.java) ?: return
+            if (power.isIgnoringBatteryOptimizations(app.packageName)) return
+            runCatching {
+                app.startActivity(
+                    Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:${app.packageName}")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                )
+            }.onFailure {
+                AgentStore(app).recordUploadError("Battery optimization request: ${it.message ?: it.javaClass.simpleName}")
+            }
         }
     }
 
