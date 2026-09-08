@@ -7,6 +7,10 @@ import java.net.URL
 
 object ApiClient {
     data class PairResult(val deviceId:String,val deviceToken:String)
+
+    fun validatePairingCode(pairingCode:String):JSONObject =
+        post("/api/devices/pairing-token/validate", JSONObject().put("pairingCode", pairingCode), null, null)
+
     fun pair(pairingCode:String,deviceId:String,sim:DeviceIdentity.SimInfo,device:DeviceIdentity.DeviceInfo):PairResult{
         val body=JSONObject().put("pairingCode",pairingCode).put("deviceId",deviceId).put("simFingerprint",sim.fingerprint).put("simCarrier",sim.carrier).put("simSubscriptionLabel",sim.label).put("phoneE164",sim.phoneNumber).put("manufacturer",device.manufacturer).put("model",device.model).put("androidVersion",device.androidVersion).put("appVersion",device.appVersion)
         val response=post("/api/devices/pair",body,null,null); val token=response.optString("deviceToken"); val returnedId=response.optString("deviceId",deviceId); if(token.isBlank())throw IOException("Pairing response did not include a device token"); return PairResult(returnedId,token)
