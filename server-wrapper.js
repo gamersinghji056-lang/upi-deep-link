@@ -1,9 +1,12 @@
+const express = require("express");
+const path = require("path");
 const { Pool } = require("pg");
 const { createApp, initDb } = require("./server");
 const { initDeviceTables, createDeviceRouter, sha256 } = require("./lib/device-pairing");
 const { initDeviceCreditTables, createDeviceCreditRouter } = require("./lib/device-credit-router");
 const { initPaymentVerificationTables, createPaymentVerificationRouter } = require("./lib/payment-verification");
 const { initDeviceOtpTables, createDeviceOtpRouter } = require("./lib/device-otp-router");
+const { requireDashboard, loginHandler, logoutHandler } = require("./lib/dashboard-auth");
 
 async function start() {
   const pool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL }) : null;
@@ -14,7 +17,24 @@ async function start() {
     await initDeviceCreditTables(pool);
     await initDeviceOtpTables(pool);
 
-    const app = createApp({ pool, env: process.env });
+    const coreApp = createApp({ pool, env: process.env });
+    const app = express();
+    app.disable("x-powered-by");
+    app.use(express.json({ limit: "64kb" }));
+
+    app.get("/login", (_req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
+    app.post("/api/dashboard/login", loginHandler(process.env));
+    app.post("/api/dashboard/logout", logoutHandler(process.env));
+
+    const dashboardAuth = requireDashboard(process.env);
+    app.use((req, res, next) => {
+      const dashboardPage = req.method === "GET" && (req.path === "/" || req.path === "/index.html");
+      const deviceAdminApi = req.path.startsWith("/api/devices/admin/");
+      const createPayment = req.method === "POST" && req.path === "/api/payments";
+      const createOrder = req.method === "POST" && req.path === "/api/orders";
+      if (dashboardPage || deviceAdminApi || createPayment || createOrder) return dashboardAuth(req, res, next);
+      next();
+    });
 
     app.post("/api/devices/pairing-token/validate", async (req, res, next) => {
       try {
@@ -35,6 +55,8 @@ async function start() {
     app.use("/api/devices", createDeviceCreditRouter({ pool }));
     app.use("/api/devices", createDeviceOtpRouter({ pool }));
     app.use("/api", createPaymentVerificationRouter({ pool }));
+    app.use(coreApp);
+
     app.use((error, _req, res, _next) => {
       const status = [400, 401, 403, 404, 409, 410, 413, 422, 502, 503].includes(error.status) ? error.status : 500;
       if (status >= 500) console.error("Runtime API request failed", error.code || error.name || "Error", error.message || "");
@@ -43,7 +65,7 @@ async function start() {
 
     const host = process.env.NODE_ENV === "development" ? "127.0.0.1" : "0.0.0.0";
     const port = process.env.PORT || 3000;
-    return app.listen(port, host, () => console.log("UPI checkout + device verification API listening on port " + port));
+    return app.listen(port, host, () => console.log("UPI checkout + secured device verification API listening on port " + port));
   } catch (error) {
     await pool?.end();
     console.error("Startup failed:", !pool ? "DATABASE_URL is missing" : (error.code || error.name), error.message || "");
