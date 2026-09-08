@@ -25,6 +25,11 @@
   let autoTimer = null;
   let refreshBusy = false;
   let detailBusy = false;
+  let locationHistoryVisible = false;
+  let locationHistoryBusy = false;
+  let locationHistoryFilter = "all";
+  let locationHistoryEvents = [];
+  let lastLocationRefreshAt = 0;
 
   function showMessage(text, type = "muted") { msg.className = "msg " + type; msg.textContent = text; }
   function esc(value) { return String(value ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;"); }
@@ -96,6 +101,40 @@
     side.appendChild(button);
   }
 
+  function ensureLocationHistoryUi() {
+    if ($("locationHistoryCard")) return $("locationHistoryCard");
+    const selectedCard = summary.closest(".card");
+    if (!selectedCard) return null;
+    const card = document.createElement("div");
+    card.id = "locationHistoryCard";
+    card.className = "card";
+    card.hidden = true;
+    card.style.marginTop = "18px";
+    card.innerHTML = `
+      <div class="event-head">
+        <div><div class="eyebrow">DEVICE LOCATION</div><h3 style="margin:4px 0 5px;font-size:23px">Location History</h3><div class="muted">Location-service changes, movement and periodic checkpoints from the selected paired device.</div></div>
+        <button id="refreshLocationHistory" type="button" class="btn secondary">↻ Refresh</button>
+      </div>
+      <div id="locationHistorySummary" class="status-grid" style="margin-top:16px"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">
+        <button type="button" class="btn primary" data-location-filter="all">All</button>
+        <button type="button" class="btn secondary" data-location-filter="movement">Movement</button>
+        <button type="button" class="btn secondary" data-location-filter="state">ON / OFF</button>
+      </div>
+      <div class="table-wrap"><table class="txn-table" style="min-width:980px"><thead><tr><th>DATE / TIME</th><th>EVENT</th><th>LOCATION</th><th>ACCURACY</th><th>DISTANCE</th><th>STATUS</th></tr></thead><tbody id="locationHistoryBody"><tr><td colspan="6" class="muted">Loading location history...</td></tr></tbody></table></div>`;
+    selectedCard.insertAdjacentElement("afterend", card);
+    $("refreshLocationHistory").addEventListener("click", () => loadLocationHistory(false, true));
+    card.querySelectorAll("[data-location-filter]").forEach(btn => btn.addEventListener("click", () => {
+      locationHistoryFilter = btn.dataset.locationFilter || "all";
+      card.querySelectorAll("[data-location-filter]").forEach(other => {
+        other.classList.toggle("primary", other === btn);
+        other.classList.toggle("secondary", other !== btn);
+      });
+      renderLocationHistory();
+    }));
+    return card;
+  }
+
   function renderCards() {
     if (!devices.length) { grid.innerHTML = '<div class="muted">No Android device has been paired yet.</div>'; return; }
     grid.innerHTML = devices.map(d => {
@@ -111,7 +150,94 @@
     empty.hidden = true; summary.hidden = false;
     const isOnline = online(d.last_seen_at);
     const loc = d.latitude==null || d.longitude==null ? "Unavailable" : `${Number(d.latitude).toFixed(6)}, ${Number(d.longitude).toFixed(6)}`;
-    summary.innerHTML = `<div class="device-card-head"><div><strong>${esc(deviceName(d))}</strong><div class="muted small">${esc(d.id)}</div></div><span class="state-pill ${isOnline?'online':'offline'}">${isOnline?'Online':'Offline'}</span></div><div class="detail-grid"><div class="detail"><span>Location</span><strong>${esc(loc)}</strong><small>${d.location_accuracy==null?'Accuracy unavailable':'± '+esc(d.location_accuracy)+' m'}</small></div><div class="detail"><span>SIM card / phone number</span><strong>${esc(d.phone_e164 || 'Not exposed by Android/device')}</strong><small>${esc(d.sim_carrier || d.network_carrier || 'Carrier unavailable')}</small></div><div class="detail"><span>Battery health</span><strong>${d.battery_level==null?'—':Math.round(Number(d.battery_level))+'%'}</strong><small>${d.charging?'Charging':'Not charging'}</small></div><div class="detail"><span>Connection network</span><strong>${esc(d.network_type || '—')}</strong><small>${esc(d.network_carrier || d.sim_carrier || '—')}</small></div><div class="detail"><span>Status</span><strong>${isOnline?'Online':'Offline'}</strong><small>Last seen ${esc(when(d.last_seen_at))}</small></div><div class="detail"><span>App / Android</span><strong>${esc(d.app_version || '—')}</strong><small>Android ${esc(d.android_version || '—')}</small></div></div>`;
+    summary.innerHTML = `<div class="device-card-head"><div><strong>${esc(deviceName(d))}</strong><div class="muted small">${esc(d.id)}</div></div><span class="state-pill ${isOnline?'online':'offline'}">${isOnline?'Online':'Offline'}</span></div><div class="detail-grid"><div class="detail"><span>Location</span><strong>${esc(loc)}</strong><small>${d.location_accuracy==null?'Accuracy unavailable':'± '+esc(d.location_accuracy)+' m'}</small><button type="button" id="viewLocationHistory" class="btn secondary" style="margin-top:10px;padding:8px 10px">${locationHistoryVisible?'Hide':'View'} Location History</button></div><div class="detail"><span>SIM card / phone number</span><strong>${esc(d.phone_e164 || 'Not exposed by Android/device')}</strong><small>${esc(d.sim_carrier || d.network_carrier || 'Carrier unavailable')}</small></div><div class="detail"><span>Battery health</span><strong>${d.battery_level==null?'—':Math.round(Number(d.battery_level))+'%'}</strong><small>${d.charging?'Charging':'Not charging'}</small></div><div class="detail"><span>Connection network</span><strong>${esc(d.network_type || '—')}</strong><small>${esc(d.network_carrier || d.sim_carrier || '—')}</small></div><div class="detail"><span>Status</span><strong>${isOnline?'Online':'Offline'}</strong><small>Last seen ${esc(when(d.last_seen_at))}</small></div><div class="detail"><span>App / Android</span><strong>${esc(d.app_version || '—')}</strong><small>Android ${esc(d.android_version || '—')}</small></div></div>`;
+    const historyButton = $("viewLocationHistory");
+    if (historyButton) historyButton.addEventListener("click", async () => {
+      const card = ensureLocationHistoryUi();
+      if (!card) return;
+      locationHistoryVisible = !locationHistoryVisible;
+      card.hidden = !locationHistoryVisible;
+      historyButton.textContent = `${locationHistoryVisible?'Hide':'View'} Location History`;
+      if (locationHistoryVisible) await loadLocationHistory(false, true);
+    });
+  }
+
+  function locationEventLabel(type) {
+    return ({
+      LOCATION_ON: "Location ON",
+      LOCATION_OFF: "Location OFF",
+      PERMISSION_GRANTED: "Permission granted",
+      PERMISSION_REVOKED: "Permission revoked",
+      MOVED: "Moved",
+      CHECKPOINT: "Checkpoint"
+    })[type] || type || "Location update";
+  }
+
+  function renderLocationHistory() {
+    const card = ensureLocationHistoryUi();
+    if (!card) return;
+    const body = $("locationHistoryBody");
+    const summaryBox = $("locationHistorySummary");
+    const all = locationHistoryEvents;
+    const current = all[0] || null;
+    const today = new Date();
+    const sameDay = value => { const d = new Date(value); return d.getFullYear()===today.getFullYear() && d.getMonth()===today.getMonth() && d.getDate()===today.getDate(); };
+    const changesToday = all.filter(e => sameDay(e.captured_at) && e.event_type !== "CHECKPOINT").length;
+    const lastMove = all.find(e => e.event_type === "MOVED");
+    const currentLocation = current && current.latitude != null && current.longitude != null
+      ? `${Number(current.latitude).toFixed(6)}, ${Number(current.longitude).toFixed(6)}`
+      : "Unavailable";
+    const serviceState = current ? (current.permission_granted ? (current.location_enabled ? "ON" : "OFF") : "Permission off") : "No history";
+    summaryBox.innerHTML = `
+      <div class="status"><span class="muted">Current location</span><strong style="font-size:14px">${esc(currentLocation)}</strong></div>
+      <div class="status"><span class="muted">Location service</span><strong>${esc(serviceState)}</strong></div>
+      <div class="status"><span class="muted">Changes today</span><strong>${changesToday}</strong></div>
+      <div class="status"><span class="muted">Last movement</span><strong style="font-size:14px">${esc(lastMove ? when(lastMove.captured_at) : '—')}</strong></div>`;
+
+    let filtered = all;
+    if (locationHistoryFilter === "movement") filtered = all.filter(e => e.event_type === "MOVED");
+    if (locationHistoryFilter === "state") filtered = all.filter(e => ["LOCATION_ON","LOCATION_OFF","PERMISSION_GRANTED","PERMISSION_REVOKED"].includes(e.event_type));
+    if (!filtered.length) {
+      body.innerHTML = '<tr><td colspan="6" class="muted">No matching location history yet.</td></tr>';
+      return;
+    }
+    body.innerHTML = filtered.map(e => {
+      const coords = e.latitude == null || e.longitude == null ? "Unavailable" : `${Number(e.latitude).toFixed(6)}, ${Number(e.longitude).toFixed(6)}`;
+      const locationText = e.last_known ? `${coords} · last known` : coords;
+      const status = e.permission_granted ? (e.location_enabled ? "Active" : "Location off") : "Permission off";
+      return `<tr><td>${esc(when(e.captured_at))}</td><td><strong>${esc(locationEventLabel(e.event_type))}</strong></td><td>${esc(locationText)}</td><td>${e.accuracy==null?'—':'± '+esc(e.accuracy)+' m'}</td><td>${e.distance_meters==null?'—':esc(Number(e.distance_meters).toFixed(0))+' m'}</td><td>${esc(status)}</td></tr>`;
+    }).join("");
+  }
+
+  async function loadLocationHistory(silent = false, force = false) {
+    if (!selectedId || locationHistoryBusy) return;
+    if (!force && silent && Date.now() - lastLocationRefreshAt < 15000) return;
+    locationHistoryBusy = true;
+    try {
+      const group = devices.find(d => d.id === selectedId);
+      const aliasIds = group?._aliasIds?.length ? group._aliasIds : [selectedId];
+      const chunks = await Promise.all(aliasIds.map(async aliasId => {
+        const response = await fetch(`/api/devices/admin/device/${encodeURIComponent(aliasId)}/location-history?limit=300`, { cache:"no-store" });
+        if (redirectIfUnauthorized(response)) throw new Error("Dashboard login required");
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not load location history");
+        return (Array.isArray(data.events) ? data.events : []).map(event => ({ ...event, _deviceId: aliasId }));
+      }));
+      const merged = new Map();
+      for (const list of chunks) for (const event of list) {
+        const key = [event._deviceId,event.id,event.event_type,event.captured_at].join("|");
+        if (!merged.has(key)) merged.set(key, event);
+      }
+      locationHistoryEvents = Array.from(merged.values()).sort((a,b) => new Date(b.captured_at || 0) - new Date(a.captured_at || 0));
+      lastLocationRefreshAt = Date.now();
+      renderLocationHistory();
+    } catch (error) {
+      if (!silent && error.message !== "Dashboard login required") showMessage(error.message, "err");
+      const body = $("locationHistoryBody");
+      if (body) body.innerHTML = `<tr><td colspan="6" class="err">${esc(error.message || 'Could not load location history')}</td></tr>`;
+    } finally {
+      locationHistoryBusy = false;
+    }
   }
 
   function renderEvents(events) {
@@ -167,6 +293,10 @@
       else if (autoSelect && devices.length) await loadDevice(devices[0].id, true);
       else if (!devices.length) {
         selectedDevice = null;
+        locationHistoryVisible = false;
+        locationHistoryEvents = [];
+        const locationCard = $("locationHistoryCard");
+        if (locationCard) locationCard.hidden = true;
         if (refreshSelectedBtn) refreshSelectedBtn.disabled = true;
         summary.hidden=true; empty.hidden=false;
         eventsBody.innerHTML='<tr><td colspan="6" class="muted">No connected device.</td></tr>';
@@ -207,6 +337,11 @@
       const otpEvents = mergeEvents(pairs.map(x => Array.isArray(x.otpData.events) ? x.otpData.events : []), "sms_received_at");
       renderEvents(creditEvents);
       renderOtpEvents(otpEvents, latest.phone_e164 || group?.phone_e164, deviceName(latest));
+      if (locationHistoryVisible) {
+        const historyCard = ensureLocationHistoryUi();
+        if (historyCard) historyCard.hidden = false;
+        await loadLocationHistory(true, false);
+      }
       if (!silent) showMessage("Device details loaded.","ok");
     } catch(e){ if (!silent && e.message !== "Dashboard login required") showMessage(e.message,"err"); }
     finally { detailBusy = false; if (refreshSelectedBtn) refreshSelectedBtn.disabled = false; }
@@ -218,6 +353,7 @@
   eventTabs.forEach(btn => btn.addEventListener("click", () => setEventTab(btn.dataset.eventTab)));
   setEventTab("utr");
   ensureLogoutButton();
+  ensureLocationHistoryUi();
   refreshApkInfo();
   refreshDevices(true, false);
   autoTimer = setInterval(() => refreshDevices(false, true), 4000);
