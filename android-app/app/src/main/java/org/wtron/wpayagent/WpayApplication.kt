@@ -11,13 +11,10 @@ import android.view.WindowInsets
 import android.view.WindowInsetsController
 
 /**
- * Applies Android system-bar safe areas to every WPAY screen.
- *
- * Android 15 enforces edge-to-edge for apps targeting API 35, which otherwise lets
- * the status bar cover the WPAY header and the navigation bar cover the bottom tabs.
- * This keeps the dark app background edge-to-edge while moving all tappable content
- * inside the status/navigation/cutout safe area. It does not rely on the temporary
- * Android 15 edge-to-edge opt-out, so it remains compatible with Android 16+.
+ * Keeps every WPAY screen inside the real Android status/navigation/cutout safe area.
+ * Android 15+ enforces edge-to-edge for targetSdk 35, so the listener is installed
+ * after the Activity has finished creating its content view rather than assuming the
+ * root child already exists during the lifecycle callback.
  */
 class WpayApplication : Application(), Application.ActivityLifecycleCallbacks {
     override fun onCreate() {
@@ -27,7 +24,11 @@ class WpayApplication : Application(), Application.ActivityLifecycleCallbacks {
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
         applyDarkSystemBars(activity)
+        activity.window.decorView.post { installSafeArea(activity) }
+    }
 
+    private fun installSafeArea(activity: Activity) {
+        if (activity.isFinishing || (Build.VERSION.SDK_INT >= 17 && activity.isDestroyed)) return
         val content = activity.findViewById<ViewGroup>(android.R.id.content) ?: return
         val root = content.getChildAt(0) ?: return
         val baseLeft = root.paddingLeft
@@ -49,6 +50,8 @@ class WpayApplication : Application(), Application.ActivityLifecycleCallbacks {
     }
 
     private fun applyDarkSystemBars(activity: Activity) {
+        activity.window.statusBarColor = Color.rgb(9, 6, 23)
+        activity.window.navigationBarColor = Color.rgb(9, 6, 23)
         activity.window.decorView.setBackgroundColor(Color.rgb(9, 6, 23))
         if (Build.VERSION.SDK_INT >= 30) {
             activity.window.insetsController?.setSystemBarsAppearance(
