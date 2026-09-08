@@ -21,7 +21,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="This device confirms incoming bank credit alerts for your own payment account. Before pairing, the app asks for SMS receive, SIM/phone-state and location permissions. It does not upload your SMS inbox or full SMS text."
+            android:text="This phone is used to confirm incoming bank-credit alerts for your payment account. Before pairing, WPAY asks for SMS receive, SIM/phone-state and location permissions. Only payment-credit SMS is processed; OTP and personal messages are ignored."
             android:textSize="14sp" />
 
         <TextView
@@ -111,13 +111,13 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:text="Send Diagnostics Now" />
+            android:text="Diagnostics sync after pairing" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="28dp"
-            android:text="Last credit event"
+            android:text="After setup"
             android:textSize="18sp"
             android:textStyle="bold" />
 
@@ -126,7 +126,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="No credit SMS processed yet." />
+            android:text="After pairing, WPAY opens the live monitor screen automatically." />
 
         <Button
             android:id="@+id/resetPairing"
