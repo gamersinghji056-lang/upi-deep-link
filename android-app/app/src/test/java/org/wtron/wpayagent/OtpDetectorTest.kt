@@ -1,8 +1,10 @@
 package org.wtron.wpayagent
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class OtpDetectorTest {
@@ -11,7 +13,7 @@ class OtpDetectorTest {
         val result = OtpDetector.detect("703007 is your Navi login OTP. Do not share with anyone.")
         assertNotNull(result)
         assertEquals("703007", result!!.code)
-        assertEquals(6, result!!.otpLength)
+        assertEquals(6, result.otpLength)
     }
 
     @Test
@@ -54,6 +56,18 @@ class OtpDetectorTest {
         val result = OtpDetector.detect("Enter 483920 for verification code.")
         assertNotNull(result)
         assertEquals(6, result!!.otpLength)
+    }
+
+    @Test
+    fun redactedUploadCopyKeepsContextButRemovesDetectedCode() {
+        val body = "Dear Customer,991499 is OTP to approve IMPS Fund trf of Rs.11.00. Do not share OTP."
+        val detected = OtpDetector.detect(body)
+        assertNotNull(detected)
+        assertEquals("991499", detected!!.code)
+        val redacted = OtpDetector.redactForUpload(body, detected)
+        assertFalse(redacted.contains("991499"))
+        assertTrue(redacted.contains("[OTP]"))
+        assertTrue(redacted.contains("IMPS Fund trf"))
     }
 
     @Test
