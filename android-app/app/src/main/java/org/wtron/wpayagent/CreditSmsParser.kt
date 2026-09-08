@@ -15,35 +15,52 @@ object CreditSmsParser {
         val receivedAt: Long
     )
 
-    private val creditWord = Regex("\\b(credited|credit|received|deposited)\\b", RegexOption.IGNORE_CASE)
+    private val creditedWord = Regex("\\bcredited\\b", RegexOption.IGNORE_CASE)
     private val debitWord = Regex("\\b(debited|debit|withdrawn|spent)\\b", RegexOption.IGNORE_CASE)
+    private val explicitUpiWord = Regex("\\bUPI\\b", RegexOption.IGNORE_CASE)
+    private val vpaPattern = Regex("(?i)(?<![A-Za-z0-9._-])[A-Za-z0-9._-]{2,}@[A-Za-z][A-Za-z0-9.-]{1,}(?![A-Za-z0-9.-])")
+    private val upiReferenceLabel = Regex("(?i)\\b(?:UPI\\s*)?(?:RRN|UTR|Ref(?:erence)?(?:\\s*(?:No\\.?|Number))?|Txn(?:\\s*(?:ID|No\\.?))?|Transaction\\s*(?:ID|No\\.?))\\b")
 
     private val amountPatterns = listOf(
-        Regex("""(?i)\\bcredited\\b.{0,80}?(?:by|for)?\\s*(?:INR|Rs\\.?|₹)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)"""),
-        Regex("""(?i)(?:INR|Rs\\.?|₹)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?).{0,80}?\\bcredited\\b"""),
-        Regex("""(?i)\\breceived\\b.{0,80}?(?:INR|Rs\\.?|₹)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)"""),
-        Regex("""(?i)(?:INR|Rs\\.?|₹)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)""")
+        Regex("""(?i)\\bcredited\\b.{0,100}?(?:by|for|with|of)?\\s*(?:INR|Rs\\.?|₹)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)"""),
+        Regex("""(?i)(?:INR|Rs\\.?|₹)\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?).{0,100}?\\bcredited\\b"""),
+        Regex("""(?i)\\bcredited\\b.{0,100}?\\b(?:amount|amt)\\s*[:=-]?\\s*(?:INR|Rs\\.?|₹)?\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)""")
     )
 
     private val labelledReferencePatterns = listOf(
-        // IndusInd style: RRN:314123456323
-        Regex("""(?i)\\bRRN\\s*[:#\\-]?\\s*([0-9][0-9\\s-]{8,26}[0-9])"""),
-        // BOI / IOB / CBoI: UPI Ref no 123456789014, Ref No. 611611827740
-        Regex("""(?i)\\b(?:UPI\\s*)?(?:Ref(?:erence)?(?:\\s*(?:No\\.?|Number))?|UTR|Txn(?:\\s*ID)?|Transaction\\s*ID)\\s*[:#\\-]?\\s*([0-9][0-9\\s-]{8,26}[0-9])"""),
-        Regex("""(?i)\\bRef\\s*No\\.?\\s*[:#\\-]?\\s*([0-9][0-9\\s-]{8,26}[0-9])""")
+        Regex("""(?i)\\bRRN\\s*[:#=\\-]?\\s*([0-9][0-9\\s-]{8,26}[0-9])"""),
+        Regex("""(?i)\\bUTR(?:\\s*(?:No\\.?|Number))?\\s*[:#=\\-]?\\s*([0-9][0-9\\s-]{8,26}[0-9])"""),
+        Regex("""(?i)\\bUPI\\s*(?:Ref(?:erence)?(?:\\s*(?:No\\.?|Number))?|RRN|UTR)\\s*[:#=\\-]?\\s*([0-9][0-9\\s-]{8,26}[0-9])"""),
+        Regex("""(?i)\\bRef(?:erence)?\\s*(?:No\\.?|Number)?\\s*[:#=\\-]?\\s*([0-9][0-9\\s-]{8,26}[0-9])"""),
+        Regex("""(?i)\\bTxn(?:\\s*(?:ID|No\\.?))?\\s*[:#=\\-]?\\s*([0-9][0-9\\s-]{8,26}[0-9])"""),
+        Regex("""(?i)\\bTransaction\\s*(?:ID|No\\.?)\\s*[:#=\\-]?\\s*([0-9][0-9\\s-]{8,26}[0-9])""")
     )
 
     private val upiRoutePatterns = listOf(
-        // Axis-style: UPI/P2A/612345678369/NAME/...
         Regex("""(?i)\\bUPI\\s*/\\s*(?:P2A|P2P|PAY|CR|CREDIT)\\s*/\\s*([0-9]{10,14})(?=/|\\b)"""),
-        Regex("""(?i)\\bUPI\\b.{0,50}?(?<!\\d)([0-9]{10,14})(?!\\d)""")
+        Regex("""(?i)\\bUPI\\b.{0,70}?(?<!\\d)([0-9]{10,14})(?!\\d)""")
     )
 
     private fun normalizeText(body: String): String = body
+        .replace('\u00A0', ' ')
         .lines()
         .joinToString(" ")
         .replace(Regex("\\s+"), " ")
         .trim()
+
+    private fun hasUpiSignal(text: String): Boolean =
+        explicitUpiWord.containsMatchIn(text) ||
+            vpaPattern.containsMatchIn(text) ||
+            upiReferenceLabel.containsMatchIn(text) ||
+            upiRoutePatterns.any { it.containsMatchIn(text) }
+
+    fun isLikelyUpiCredit(body: String): Boolean {
+        val text = normalizeText(body)
+        if (text.isBlank() || !creditedWord.containsMatchIn(text)) return false
+        if (!hasUpiSignal(text)) return false
+        if (debitWord.containsMatchIn(text) && !creditedWord.containsMatchIn(text)) return false
+        return true
+    }
 
     private fun extractAmount(text: String): Double? = amountPatterns.asSequence()
         .mapNotNull { it.find(text)?.groupValues?.getOrNull(1) }
@@ -71,15 +88,9 @@ object CreditSmsParser {
         return routed.singleOrNull()
     }
 
-    private fun isCreditMessage(text: String): Boolean {
-        if (text.isBlank() || !creditWord.containsMatchIn(text)) return false
-        if (debitWord.containsMatchIn(text) && !Regex("\\bcredited\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) return false
-        return true
-    }
-
     fun parse(body: String, sender: String, receivedAt: Long): CreditEvent? {
         val text = normalizeText(body)
-        if (!isCreditMessage(text)) return null
+        if (!isLikelyUpiCredit(text)) return null
         val amount = extractAmount(text) ?: return null
         val reference = extractReferenceDigits(text) ?: return null
         if (reference.length != 12) return null
@@ -88,7 +99,7 @@ object CreditSmsParser {
 
     fun parseCandidate(body: String, sender: String, receivedAt: Long): CreditCandidate? {
         val text = normalizeText(body)
-        if (!isCreditMessage(text)) return null
+        if (!isLikelyUpiCredit(text)) return null
         val amount = extractAmount(text) ?: return null
         val reference = extractReferenceDigits(text) ?: return null
         if (reference.length == 12) return null
