@@ -3,46 +3,52 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>WPAY UPI Payment Link</title>
+<title>WPAY Dashboard</title>
 <style>
-*{box-sizing:border-box}body{margin:0;background:#0b1020;color:#f6f8fc;font-family:Arial,sans-serif}.wrap{width:min(920px,calc(100% - 24px));margin:0 auto;padding:28px 0 50px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.card{background:#121a2b;border:1px solid #2a3852;border-radius:18px;padding:18px}h1{margin:0 0 8px}.muted{color:#9aa8be}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}label{display:block;margin:14px 0 6px;font-size:13px;font-weight:700}input,textarea{width:100%;background:#0b1220;color:#fff;border:1px solid #30415f;border-radius:12px;padding:12px;font-size:16px}textarea{min-height:96px}.btn{border:0;border-radius:12px;padding:13px 16px;font-weight:800;cursor:pointer}.primary{width:100%;margin-top:16px;background:#6d4aff;color:#fff}.secondary{background:#1d2941;color:#fff}.msg{margin-top:10px;font-size:13px}.ok{color:#63dea5}.err{color:#ff8290}.result{display:none}.debug{margin-top:12px;background:#0b1220;border:1px solid #263650;border-radius:12px;padding:10px;font:12px monospace;word-break:break-all;color:#bac7dc;white-space:pre-wrap}.short{font-size:18px;font-weight:800}.badge{display:inline-block;margin-top:6px;padding:6px 10px;border-radius:999px;background:#1d2941;color:#dce6f6;font-size:12px;font-weight:800}@media(max-width:760px){.grid{grid-template-columns:1fr}.row{grid-template-columns:1fr}}
+*{box-sizing:border-box}body{margin:0;background:#08101f;color:#f6f8fc;font-family:Inter,Arial,sans-serif}.shell{min-height:100vh;display:grid;grid-template-columns:240px 1fr}.side{padding:24px 16px;border-right:1px solid #22304a;background:#0d1627}.brand{font-size:22px;font-weight:900;margin:0 8px 24px}.nav{display:grid;gap:8px}.nav button{border:0;text-align:left;padding:12px 14px;border-radius:12px;background:transparent;color:#a9b7cc;font-weight:800;cursor:pointer}.nav button.active{background:#6d4aff;color:white}.main{padding:28px}.top{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:18px}.top h1{margin:0;font-size:28px}.muted{color:#9aa8be}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.card{background:#121a2b;border:1px solid #2a3852;border-radius:18px;padding:18px}.panel{display:none}.panel.active{display:block}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}label{display:block;margin:14px 0 6px;font-size:13px;font-weight:700}input,textarea{width:100%;background:#0b1220;color:#fff;border:1px solid #30415f;border-radius:12px;padding:12px;font-size:16px}textarea{min-height:96px}.btn{border:0;border-radius:12px;padding:13px 16px;font-weight:800;cursor:pointer}.primary{width:100%;margin-top:16px;background:#6d4aff;color:#fff}.secondary{background:#1d2941;color:#fff}.msg{margin-top:10px;font-size:13px}.ok{color:#63dea5}.err{color:#ff8290}.result{display:none}.debug{margin-top:12px;background:#0b1220;border:1px solid #263650;border-radius:12px;padding:10px;font:12px monospace;word-break:break-all;color:#bac7dc;white-space:pre-wrap}.short{font-size:18px;font-weight:800}.badge{display:inline-block;margin-top:6px;padding:6px 10px;border-radius:999px;background:#1d2941;color:#dce6f6;font-size:12px;font-weight:800}.steps{display:grid;gap:12px}.step{padding:14px;border:1px solid #2a3852;border-radius:14px;background:#0e1728}.step b{display:block;margin-bottom:4px}.status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0}.status{padding:14px;border-radius:14px;background:#101a2c;border:1px solid #2a3852}.status strong{display:block;font-size:20px;margin-top:6px}.perm{display:grid;grid-template-columns:1fr auto;gap:10px;padding:11px 0;border-bottom:1px solid #25334c}.perm:last-child{border-bottom:0}.pill{padding:5px 9px;border-radius:999px;background:#1d2941;color:#cdd8ea;font-size:11px;font-weight:800;height:max-content}.warn{margin-top:14px;padding:12px;border-radius:12px;background:#241c13;border:1px solid #62431c;color:#f6cf8f;font-size:13px}@media(max-width:850px){.shell{grid-template-columns:1fr}.side{border-right:0;border-bottom:1px solid #22304a}.nav{grid-template-columns:1fr 1fr}.main{padding:18px}.grid,.row,.status-grid{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}
 </style>
 </head>
 <body>
-<main class="wrap">
-<h1>WPAY UPI Payment Link</h1>
-<p class="muted">Upload a merchant UPI QR, enter the amount and create a normal merchant UPI intent link.</p>
-<div class="badge">MERCHANT UPI INTENT</div>
-<section class="grid" style="margin-top:14px">
+<div class="shell">
+<aside class="side">
+<div class="brand">WPAY</div>
+<div class="nav">
+<button class="active" data-tab="upi">UPI Link Generator</button>
+<button data-tab="apk">APK Setup</button>
+</div>
+</aside>
+<main class="main">
+<section id="upi" class="panel active">
+<div class="top"><div><h1>UPI Link Generator</h1><div class="muted">Create short payment links using the existing working PhonePe and Paytm checkout.</div></div><span class="badge">LIVE</span></div>
+<section class="grid">
 <form id="form" class="card">
 <label>Upload merchant UPI QR</label>
 <input id="qrFile" type="file" accept="image/*">
 <div id="qrMsg" class="msg muted">Upload the merchant QR you want to use.</div>
 <label>UPI ID or full upi://pay URI</label>
 <textarea id="upiInput" placeholder="merchant@bank or upi://pay?pa=merchant@bank&pn=Merchant"></textarea>
-<div class="row">
-<div><label>Payee name</label><input id="pn" placeholder="Merchant"></div>
-<div><label>Amount INR</label><input id="am" inputmode="decimal" placeholder="11.00"></div>
-</div>
-<p class="muted">For a merchant QR, existing fields are preserved. If missing, amount/currency are added and a unique transaction reference is generated for the merchant intent. We do not invent MCC or signed merchant metadata.</p>
-<label>Payment note (manual VPA only)</label>
-<input id="tn" maxlength="80" placeholder="Payment">
+<div class="row"><div><label>Payee name</label><input id="pn" placeholder="Merchant"></div><div><label>Amount INR</label><input id="am" inputmode="decimal" placeholder="11.00"></div></div>
+<label>Payment note</label><input id="tn" maxlength="80" placeholder="Payment">
 <button class="btn primary" id="createBtn" type="submit">Create UPI Payment Link</button>
 <div id="msg" class="msg"></div>
 </form>
-<section class="card">
-<h3>Generated payment link</h3>
-<div id="empty" class="muted">No payment link created yet.</div>
-<div id="result" class="result">
-<p class="short" id="paymentId"></p>
-<input id="checkout" readonly>
-<div style="display:flex;gap:8px;margin-top:10px"><button id="copy" type="button" class="btn secondary">Copy</button><button id="open" type="button" class="btn secondary">Open</button></div>
-<div class="debug" id="debug"></div>
+<section class="card"><h3>Generated payment link</h3><div id="empty" class="muted">No payment link created yet.</div><div id="result" class="result"><p class="short" id="paymentId"></p><input id="checkout" readonly><div style="display:flex;gap:8px;margin-top:10px"><button id="copy" type="button" class="btn secondary">Copy</button><button id="open" type="button" class="btn secondary">Open</button></div><div class="debug" id="debug"></div></div></section>
+</section>
+</section>
+<section id="apk" class="panel">
+<div class="top"><div><h1>APK Setup</h1><div class="muted">Connect an Android device only after the user reviews and grants the required permissions.</div></div><span class="badge">PHASE 2</span></div>
+<div class="status-grid"><div class="status"><span class="muted">Connected devices</span><strong>0</strong></div><div class="status"><span class="muted">Last UTR</span><strong>—</strong></div><div class="status"><span class="muted">Device health</span><strong>Not connected</strong></div></div>
+<div class="grid">
+<div class="card"><h3>Connection flow</h3><div class="steps"><div class="step"><b>1. Install & open APK</b><span class="muted">App shows exactly what device information it needs before connection.</span></div><div class="step"><b>2. Verify mobile/SIM</b><span class="muted">Bind the device using OTP to the mobile number present on that phone. Do not rely on silently reading the SIM phone number because Android often does not expose it.</span></div><div class="step"><b>3. Grant permissions</b><span class="muted">Request permissions one by one with a clear reason and allow the user to deny optional diagnostics.</span></div><div class="step"><b>4. Pair device</b><span class="muted">Create a one-time pairing token from this dashboard and exchange it for a device credential.</span></div><div class="step"><b>5. Collect payment result</b><span class="muted">Capture UTR from the UPI app result/callback when available. Do not treat app return alone as successful payment.</span></div></div></div>
+<div class="card"><h3>Permissions & diagnostics</h3><div class="perm"><div><b>Location</b><div class="muted">Current location only when user permits it.</div></div><span class="pill">RUNTIME</span></div><div class="perm"><div><b>Network state</b><div class="muted">Wi‑Fi/mobile transport, connectivity and carrier metadata.</div></div><span class="pill">DIAGNOSTIC</span></div><div class="perm"><div><b>Battery state</b><div class="muted">Battery level, charging state and power condition.</div></div><span class="pill">DIAGNOSTIC</span></div><div class="perm"><div><b>SIM / subscription metadata</b><div class="muted">Use best-available subscription/carrier identifiers only after consent. SIM-bound access should be enforced with OTP verification.</div></div><span class="pill">CONSENT</span></div><div class="perm"><div><b>UPI transaction result</b><div class="muted">Read the result returned by the payment flow and extract the UTR where the app provides it.</div></div><span class="pill">PAYMENT</span></div><div class="warn">We should not request SMS, contacts, call logs or notification access just to obtain a UTR. If a UPI app does not return the UTR, use verified backend status or explicit user entry instead of covertly reading unrelated phone data.</div></div>
 </div>
 </section>
-</section>
 </main>
+</div>
 <script src="/vendor/html5-qrcode/html5-qrcode.min.js"></script>
 <script src="/upi.js"></script><script src="/generator.js"></script>
+<script>
+for(const b of document.querySelectorAll('[data-tab]')) b.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===b.dataset.tab));});
+</script>
 </body>
 </html>
