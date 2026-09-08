@@ -15,19 +15,21 @@ object CreditSmsParser {
         val receivedAt: Long
     )
 
+    data class CreditWithoutReference(
+        val amount: Double,
+        val sender: String,
+        val receivedAt: Long
+    )
+
     private val creditedWord = Regex("(?i)\\bcredited\\b")
     private val explicitUpiWord = Regex("(?i)\\bUPI\\b")
     private val vpaPattern = Regex("(?i)(?<![A-Za-z0-9._-])[A-Za-z0-9._-]{2,}@[A-Za-z][A-Za-z0-9.-]{1,}(?![A-Za-z0-9.-])")
     private val upiRoutePattern = Regex("(?i)\\bUPI\\s*/\\s*(?:P2A|P2P|PAY|CR|CREDIT)\\s*/")
 
     private val amountPatterns = listOf(
-        // A/c ... credited by Rs. 15.00 / credited for Rs. 5.00 / credited with INR 25
         Regex("""(?i)\bcredited\b.{0,120}?(?:by|for|with|of)?\s*(?:INR|Rs\.?|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)"""),
-        // INR 95000.00 credited / Rs 25 credited
         Regex("""(?i)(?:INR|Rs\.?|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?).{0,120}?\bcredited\b"""),
-        // credited amount 25 / credited amt INR 25
         Regex("""(?i)\bcredited\b.{0,80}?\b(?:amount|amt)\s*[:=\-]?\s*(?:INR|Rs\.?|₹)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)"""),
-        // credited INR 25 (without by/for)
         Regex("""(?i)\bcredited\b\s*(?:INR|Rs\.?|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)""")
     )
 
@@ -105,5 +107,13 @@ object CreditSmsParser {
         val reference = extractReferenceDigits(text) ?: return null
         if (reference.length == 12) return null
         return CreditCandidate(reference, amount, sender.take(80), receivedAt)
+    }
+
+    fun parseWithoutReference(body: String, sender: String, receivedAt: Long): CreditWithoutReference? {
+        val text = normalizeText(body)
+        if (!isLikelyUpiCredit(text)) return null
+        val amount = extractAmount(text) ?: return null
+        if (extractReferenceDigits(text) != null) return null
+        return CreditWithoutReference(amount, sender.take(80), receivedAt)
     }
 }
