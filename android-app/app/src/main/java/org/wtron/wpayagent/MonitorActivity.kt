@@ -1,9 +1,13 @@
 package org.wtron.wpayagent
 
 import android.app.Activity
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -28,6 +32,13 @@ class MonitorActivity : Activity() {
     private lateinit var emptyMessages: TextView
     private val handler = Handler(Looper.getMainLooper())
     private var running = false
+    private var feedReceiverRegistered = false
+
+    private val feedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            renderMessages()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,6 +74,7 @@ class MonitorActivity : Activity() {
     override fun onResume() {
         super.onResume()
         running = true
+        registerFeedReceiver()
         renderMessages()
         handler.post(statusLoop)
     }
@@ -70,7 +82,26 @@ class MonitorActivity : Activity() {
     override fun onPause() {
         running = false
         handler.removeCallbacks(statusLoop)
+        unregisterFeedReceiver()
         super.onPause()
+    }
+
+    private fun registerFeedReceiver() {
+        if (feedReceiverRegistered) return
+        val filter = IntentFilter(ACTION_FEED_UPDATED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(feedReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(feedReceiver, filter)
+        }
+        feedReceiverRegistered = true
+    }
+
+    private fun unregisterFeedReceiver() {
+        if (!feedReceiverRegistered) return
+        runCatching { unregisterReceiver(feedReceiver) }
+        feedReceiverRegistered = false
     }
 
     private val statusLoop = object : Runnable {
