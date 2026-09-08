@@ -114,6 +114,20 @@ class SmsEventStore(private val context: Context) {
                 values,
                 SQLiteDatabase.CONFLICT_IGNORE
             )
+            if (kind == "OTP_DETECTED" && reference.matches(Regex("^\\d{4,8}$"))) {
+                val repairValues = ContentValues().apply {
+                    put("reference", reference)
+                    put("status", "PENDING")
+                    put("last_error", "")
+                    put("server_state", "")
+                }
+                db.writableDatabase.update(
+                    "sms_events",
+                    repairValues,
+                    "source_key=? AND kind='OTP_DETECTED' AND reference=''",
+                    arrayOf(key)
+                )
+            }
             return findBySourceKey(key) ?: error("Could not persist SMS event")
         }
     }
