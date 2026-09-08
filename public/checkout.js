@@ -136,9 +136,10 @@
       $("verificationState").textContent = "UTR verification is available on WP short links only.";
       return;
     }
-    const utr = $("utrInput").value.trim();
-    if (!/^[A-Za-z0-9\s-]{6,64}$/.test(utr)) {
-      $("verificationState").textContent = "Enter a valid UTR / reference number.";
+    const utr = $("utrInput").value.replace(/\D/g, "");
+    $("utrInput").value = utr;
+    if (!/^\d{12}$/.test(utr)) {
+      $("verificationState").textContent = "Enter the exact 12-digit UPI UTR.";
       return;
     }
     const button = $("submitUtr");
@@ -207,6 +208,9 @@
       }
     });
 
+    $("utrInput").addEventListener("input", event => {
+      event.target.value = event.target.value.replace(/\D/g, "").slice(0, 12);
+    });
     $("submitUtr").addEventListener("click", submitUtr);
     $("utrInput").addEventListener("keydown", event => { if (event.key === "Enter") submitUtr(); });
 
