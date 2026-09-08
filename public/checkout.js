@@ -3,7 +3,7 @@
   const $ = id => document.getElementById(id);
   const flags = new URLSearchParams(location.search);
   const match = location.pathname.match(/^\/pay\/(WP[A-Za-z0-9]{8})$/);
-  let uri, expiresAt, paymentId = "Legacy link", diagnostics = null;
+  let uri, expiresAt, paymentId = "Legacy link", diagnostics = null, verificationTimer = null;
 
   function utf8Base64(value) {
     const bytes = new TextEncoder().encode(value);
@@ -28,12 +28,7 @@
     const { vpa, amount } = requirePayment(parsed);
     const note = paymentNote(parsed, id);
     const payload = {
-      contact: {
-        cbsName: "",
-        nickName: "",
-        type: "VPA",
-        vpa
-      },
+      contact: { cbsName: "", nickName: "", type: "VPA", vpa },
       p2pPaymentCheckoutParams: {
         checkoutType: "DEFAULT",
         initialAmount: Math.round(amount * 100),
@@ -58,27 +53,14 @@
   function buildPaytmUrl(parsed, id) {
     const { vpa, amount } = requirePayment(parsed);
     const note = paymentNote(parsed, id);
-    const params = new URLSearchParams({
-      featuretype: "money_transfer",
-      pa: vpa,
-      tr: note,
-      am: amount.toFixed(2),
-      pn: "VPAY",
-      tn: note
-    });
+    const params = new URLSearchParams({ featuretype: "money_transfer", pa: vpa, tr: note, am: amount.toFixed(2), pn: "VPAY", tn: note });
     return "paytmmp://cash_wallet?" + params.toString();
   }
 
   function buildQrUpiUrl(parsed, id) {
     const { vpa, amount } = requirePayment(parsed);
     const note = paymentNote(parsed, id);
-    const params = new URLSearchParams({
-      pa: vpa,
-      tn: note,
-      am: amount.toFixed(2),
-      cu: "INR",
-      pn: ""
-    });
+    const params = new URLSearchParams({ pa: vpa, tn: note, am: amount.toFixed(2), cu: "INR", pn: "" });
     return "upi://pay?" + params.toString();
   }
 
@@ -88,20 +70,12 @@
     const download = $("downloadQr");
     if (!box || !download) return;
     box.innerHTML = "";
-
     if (typeof QRCode !== "function") {
       if (status) status.textContent = "QR could not load. Copy the UPI ID instead.";
       download.disabled = true;
       return;
     }
-
-    new QRCode(box, {
-      text,
-      width: 240,
-      height: 240,
-      correctLevel: QRCode.CorrectLevel.M
-    });
-
+    new QRCode(box, { text, width: 240, height: 240, correctLevel: QRCode.CorrectLevel.M });
     if (status) status.textContent = "Scan this QR with any UPI app.";
     download.disabled = false;
     download.onclick = () => {
@@ -120,6 +94,76 @@
         $("error").textContent = error.message || "Could not download QR";
       }
     };
+  }
+
+  function showVerified(data) {
+    if (verificationTimer) {
+      clearInterval(verificationTimer);
+      verificationTimer = null;
+    }
+    $("verificationState").textContent = data?.utrMasked ? "Verified UTR " + data.utrMasked : "Payment verified.";
+    $("verificationState").style.color = "#75e5b6";
+    $("successBox").hidden = false;
+    $("utrInput").disabled = true;
+    $("submitUtr").disabled = true;
+    document.title = "Payment verified";
+    window.dispatchEvent(new CustomEvent("wpay:payment-success", { detail: { paymentId, status: "success", verified: true } }));
+  }
+
+  async function checkVerification() {
+    if (!match) return;
+    try {
+      const response = await fetch("/api/payments/" + paymentId + "/verification-status", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not check payment status");
+      if (data.verified && data.status === "success") {
+        showVerified(data);
+      } else if (data.status === "pending") {
+        $("verificationState").textContent = "UTR received. Waiting for matching bank credit confirmation...";
+      }
+    } catch (error) {
+      if ($("verificationState")) $("verificationState").textContent = error.message;
+    }
+  }
+
+  function startVerificationPolling() {
+    if (!match || verificationTimer) return;
+    verificationTimer = setInterval(checkVerification, 3000);
+  }
+
+  async function submitUtr() {
+    if (!match) {
+      $("verificationState").textContent = "UTR verification is available on WP short links only.";
+      return;
+    }
+    const utr = $("utrInput").value.trim();
+    if (!/^[A-Za-z0-9\s-]{6,64}$/.test(utr)) {
+      $("verificationState").textContent = "Enter a valid UTR / reference number.";
+      return;
+    }
+    const button = $("submitUtr");
+    button.disabled = true;
+    $("verificationState").textContent = "Submitting UTR...";
+    try {
+      const response = await fetch("/api/payments/" + paymentId + "/utr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ utr })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not submit UTR");
+      if (data.verified || data.status === "success") {
+        showVerified(data);
+      } else {
+        $("verificationState").textContent = data.message || "UTR submitted. Waiting for credit confirmation...";
+        startVerificationPolling();
+      }
+    } catch (error) {
+      $("verificationState").textContent = error.message;
+    } finally {
+      if (!$("successBox").hidden) button.disabled = true;
+      else button.disabled = false;
+    }
   }
 
   try {
@@ -143,10 +187,7 @@
     const parsed = Upi.parse(uri).fields;
     const amount = parsed.am[0];
     const vpa = parsed.pa[0];
-
-    $("amount").textContent = amount && Number.isFinite(Number(amount)) && Number(amount) > 0
-      ? "INR " + Number(amount).toFixed(2)
-      : "Amount unavailable";
+    $("amount").textContent = amount && Number.isFinite(Number(amount)) && Number(amount) > 0 ? "INR " + Number(amount).toFixed(2) : "Amount unavailable";
     $("name").textContent = parsed.pn[0] || "UPI Payment";
     $("vpa").textContent = vpa;
     $("paymentId").textContent = paymentId;
@@ -166,13 +207,12 @@
       }
     });
 
+    $("submitUtr").addEventListener("click", submitUtr);
+    $("utrInput").addEventListener("keydown", event => { if (event.key === "Enter") submitUtr(); });
+
     renderQr(buildQrUpiUrl(parsed, paymentId));
 
-    const launchers = {
-      phonepe: () => buildPhonePeNative(parsed, paymentId),
-      paytm: () => buildPaytmUrl(parsed, paymentId)
-    };
-
+    const launchers = { phonepe: () => buildPhonePeNative(parsed, paymentId), paytm: () => buildPaytmUrl(parsed, paymentId) };
     for (const button of document.querySelectorAll("button[data-app]")) {
       button.addEventListener("click", () => {
         try {
@@ -192,6 +232,7 @@
       });
     }
 
+    if (match) checkVerification();
     if (match && flags.get("diagnostics") === "1") {
       const response = await fetch("/api/payments/" + paymentId + "/diagnostics", { cache: "no-store" });
       if (response.ok) {
