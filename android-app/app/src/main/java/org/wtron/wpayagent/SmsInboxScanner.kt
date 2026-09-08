@@ -56,7 +56,8 @@ object SmsInboxScanner {
                     sender = sender,
                     body = body,
                     receivedAt = receivedAt,
-                    scheduleUpload = false
+                    scheduleUpload = false,
+                    recordReceiverHealth = false
                 )
                 scanned++
                 if (result.isCredit) creditMessages++
