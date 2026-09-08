@@ -2,10 +2,14 @@ package org.wtron.wpayagent
 
 import android.Manifest
 import android.app.Activity
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -27,12 +31,22 @@ class MonitorActivity : Activity() {
     private lateinit var eventStore: SmsEventStore
     private lateinit var onlineStatus: TextView
     private lateinit var deviceStatus: TextView
+    private lateinit var receiverHealth: TextView
     private lateinit var messageList: LinearLayout
     private lateinit var emptyMessages: TextView
     private lateinit var refreshSms: Button
     private val handler = Handler(Looper.getMainLooper())
     private var running = false
+    private var receiverRegistered = false
     private val readSmsPermissionRequestCode = 4402
+
+    private val feedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action != ACTION_FEED_UPDATED) return
+            renderMessages()
+            renderReceiverHealth()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,6 +61,7 @@ class MonitorActivity : Activity() {
         eventStore = SmsEventStore(this)
         onlineStatus = findViewById(R.id.onlineStatus)
         deviceStatus = findViewById(R.id.deviceStatus)
+        receiverHealth = findViewById(R.id.receiverHealth)
         messageList = findViewById(R.id.messageList)
         emptyMessages = findViewById(R.id.emptyMessages)
         refreshSms = findViewById(R.id.refreshSms)
@@ -56,6 +71,7 @@ class MonitorActivity : Activity() {
             CreditRetryScheduler.enqueue(this)
             toast("Pending payment-credit messages queued for resend.")
             renderMessages()
+            renderReceiverHealth()
         }
         findViewById<Button>(R.id.disconnectDevice).setOnClickListener {
             store.clearPairing()
@@ -66,13 +82,38 @@ class MonitorActivity : Activity() {
         CreditRetryScheduler.ensurePeriodic(this)
         CreditRetryScheduler.enqueue(this)
         renderMessages()
+        renderReceiverHealth()
         refreshConnectionAndDiagnostics()
+        autoReconcileInbox()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (!receiverRegistered) {
+            val filter = IntentFilter(ACTION_FEED_UPDATED)
+            if (Build.VERSION.SDK_INT >= 33) {
+                registerReceiver(feedReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                registerReceiver(feedReceiver, filter)
+            }
+            receiverRegistered = true
+        }
+    }
+
+    override fun onStop() {
+        if (receiverRegistered) {
+            runCatching { unregisterReceiver(feedReceiver) }
+            receiverRegistered = false
+        }
+        super.onStop()
     }
 
     override fun onResume() {
         super.onResume()
         running = true
         renderMessages()
+        renderReceiverHealth()
         handler.post(statusLoop)
     }
 
@@ -86,9 +127,9 @@ class MonitorActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == readSmsPermissionRequestCode) {
             if (checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED) {
-                scanInboxInBackground()
+                scanInboxInBackground(showToast = true, limit = 500)
             } else {
-                toast("SMS inbox permission is required only for manual Refresh SMS. New incoming SMS can still be captured with Receive SMS permission.")
+                toast("SMS inbox permission is required for Refresh Latest SMS.")
             }
         }
     }
@@ -97,6 +138,7 @@ class MonitorActivity : Activity() {
         override fun run() {
             if (!running) return
             renderMessages()
+            renderReceiverHealth()
             refreshConnectionAndDiagnostics()
             handler.postDelayed(this, 30_000)
         }
@@ -107,26 +149,35 @@ class MonitorActivity : Activity() {
             requestPermissions(arrayOf(Manifest.permission.READ_SMS), readSmsPermissionRequestCode)
             return
         }
-        scanInboxInBackground()
+        scanInboxInBackground(showToast = true, limit = 500)
     }
 
-    private fun scanInboxInBackground() {
+    private fun autoReconcileInbox() {
+        if (checkSelfPermission(Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) return
+        scanInboxInBackground(showToast = false, limit = 200)
+    }
+
+    private fun scanInboxInBackground(showToast: Boolean, limit: Int) {
         refreshSms.isEnabled = false
         refreshSms.text = "Refreshing..."
         Thread {
             try {
-                val result = SmsInboxScanner.scanAllInbox(this)
+                val result = SmsInboxScanner.scanRecent(this, limit)
                 runOnUiThread {
                     renderMessages()
+                    renderReceiverHealth()
                     refreshSms.isEnabled = true
-                    refreshSms.text = "Refresh SMS"
-                    toast("${result.scanned} inbox SMS checked · ${result.creditMessages} UPI credit message(s) found.")
+                    refreshSms.text = "Refresh Latest SMS"
+                    if (showToast) {
+                        toast("${result.scanned} latest inbox SMS checked · ${result.creditMessages} UPI credit message(s) found.")
+                    }
                 }
             } catch (error: Exception) {
                 runOnUiThread {
                     refreshSms.isEnabled = true
-                    refreshSms.text = "Refresh SMS"
-                    toast("SMS refresh failed: ${error.message ?: "unknown error"}")
+                    refreshSms.text = "Refresh Latest SMS"
+                    if (showToast) toast("SMS refresh failed: ${error.message ?: "unknown error"}")
+                    renderReceiverHealth()
                 }
             }
         }.start()
@@ -136,16 +187,17 @@ class MonitorActivity : Activity() {
         Thread {
             try {
                 val sim = DeviceIdentity.currentSimInfo(this)
-                if (!sim.hasActiveSim || sim.fingerprint != store.simFingerprint) {
+                val boundFingerprint = DeviceIdentity.resolveBoundFingerprint(sim, store.simFingerprint)
+                if (!sim.hasActiveSim || boundFingerprint == null) {
                     runOnUiThread {
-                        showOnline(false, "SIM changed or unavailable")
+                        showOnline(false, "SIM mismatch")
                         deviceStatus.text = "Bound SIM does not match the active SIM."
                     }
                     return@Thread
                 }
 
-                ApiClient.heartbeat(store, sim.fingerprint)
-                val diagnostics = DiagnosticsCollector.collect(this, sim.fingerprint)
+                ApiClient.heartbeat(store, boundFingerprint)
+                val diagnostics = DiagnosticsCollector.collect(this, boundFingerprint)
                 ApiClient.diagnostics(store, diagnostics)
 
                 val battery = if (diagnostics.isNull("batteryLevel")) "—" else String.format(Locale.US, "%.0f%%", diagnostics.optDouble("batteryLevel"))
@@ -169,10 +221,12 @@ class MonitorActivity : Activity() {
                         append("\nLocation: ").append(locationText)
                     }
                 }
-            } catch (_: Exception) {
+            } catch (error: Exception) {
                 runOnUiThread {
                     showOnline(false, "Offline")
-                    deviceStatus.text = "Server connection unavailable. Payment-credit messages remain on this phone and retry automatically."
+                    deviceStatus.text = "Server connection unavailable. Credit messages stay queued and retry automatically."
+                    store.recordUploadError(error.message ?: "Server connection unavailable")
+                    renderReceiverHealth()
                 }
             }
         }.start()
@@ -183,9 +237,24 @@ class MonitorActivity : Activity() {
         onlineStatus.setTextColor(if (online) Color.rgb(22, 163, 74) else Color.rgb(220, 38, 38))
     }
 
+    private fun renderReceiverHealth() {
+        if (!::receiverHealth.isInitialized) return
+        receiverHealth.text = buildString {
+            append("Last automatic SMS: ")
+            append(if (store.lastSmsBroadcastAt > 0) formatTime(store.lastSmsBroadcastAt) else "none received by app yet")
+            if (store.lastSmsSender.isNotBlank()) append(" · ").append(store.lastSmsSender)
+            append("\nLast classification: ").append(store.lastClassification)
+            append("\nLast upload: ")
+            append(if (store.lastUploadAt > 0) "${formatTime(store.lastUploadAt)} · ${store.lastUploadSummary}" else store.lastUploadSummary)
+            if (store.lastUploadError.isNotBlank()) append("\nLast upload error: ").append(store.lastUploadError)
+            append("\nLast inbox reconcile: ")
+            append(if (store.lastInboxRefreshAt > 0) formatTime(store.lastInboxRefreshAt) else "not run yet")
+        }
+    }
+
     private fun renderMessages() {
         if (!::eventStore.isInitialized) return
-        val events = eventStore.list().take(100)
+        val events = eventStore.list(250)
         messageList.removeAllViews()
         emptyMessages.visibility = if (events.isEmpty()) View.VISIBLE else View.GONE
 
