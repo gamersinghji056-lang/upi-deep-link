@@ -80,12 +80,14 @@ class CreditRetryWorker(appContext: Context, workerParams: WorkerParameters) : W
                         ApiClient.creditSmsNoReference(store, payload)
                     }
                     "OTP_DETECTED" -> {
+                        val otpLength = event.reference.length.coerceIn(4, 8)
                         val payload = JSONObject()
                             .put("simFingerprint", boundFingerprint)
                             .put("sender", event.sender)
                             .put("receivedAt", receivedAt)
                             .put("source", "sms")
-                            .put("otpCode", event.reference)
+                            .put("otpLength", otpLength)
+                            .put("messageMasked", event.body)
                         ApiClient.otpEvent(store, payload)
                     }
                     else -> return@forEach
