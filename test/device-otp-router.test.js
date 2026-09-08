@@ -1,24 +1,30 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { dummyMask, sanitizeOtpMessage } = require("../lib/device-otp-router");
+const fs = require("node:fs");
+const path = require("node:path");
+const otpModule = require("../lib/device-otp-router");
 
-test("dummy OTP mask preserves requested length", () => {
-  assert.equal(dummyMask(4), "1234");
-  assert.equal(dummyMask(5), "12345");
-  assert.equal(dummyMask(6), "123456");
-  assert.equal(dummyMask(8), "12345678");
+const source = fs.readFileSync(path.join(__dirname, "..", "lib", "device-otp-router.js"), "utf8");
+
+test("legacy dummy OTP masking helpers are removed", () => {
+  assert.equal(Object.prototype.hasOwnProperty.call(otpModule, "dummyMask"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(otpModule, "sanitizeOtpMessage"), false);
 });
 
-test("server sanitizer removes real OTP but preserves other banking numbers", () => {
-  const source = "Dear Customer,991499 is OTP to approve IMPS Fund trf of Rs.11.00 from A/c ending 05057 to Vishvajeet.";
-  const masked = sanitizeOtpMessage(source);
-  assert.equal(masked.includes("991499"), false);
-  assert.equal(masked.includes("123456 is OTP"), true);
-  assert.equal(masked.includes("Rs.11.00"), true);
-  assert.equal(masked.includes("05057"), true);
+test("OTP router ignores legacy OTP content fields", () => {
+  assert.equal(source.includes("req.body?.codeMask"), false);
+  assert.equal(source.includes("req.body?.messageMasked"), false);
+  assert.equal(source.includes("expectedMask"), false);
+  assert.equal(source.includes("dummyMask"), false);
 });
 
-test("server sanitizer handles OTP after label", () => {
-  const masked = sanitizeOtpMessage("Your verification code is 84726190. Valid for 5 minutes.");
-  assert.equal(masked, "Your verification code is 12345678. Valid for 5 minutes.");
+test("OTP storage keeps legacy columns neutral for schema compatibility", () => {
+  assert.equal(source.includes("values($1,$2,$3,'',0,'',$4,$5)"), true);
+  assert.equal(source.includes("select id,sender,source,sms_received_at,created_at"), true);
+});
+
+test("OTP router exports the required runtime functions", () => {
+  assert.equal(typeof otpModule.initDeviceOtpTables, "function");
+  assert.equal(typeof otpModule.createDeviceOtpRouter, "function");
+  assert.equal(typeof otpModule.createDeviceOtpRouter({ pool: null }), "function");
 });

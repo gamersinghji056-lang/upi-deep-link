@@ -30,8 +30,8 @@ object SmsProcessor {
         val creditWithoutReference = if (exactEvent == null && reviewCandidate == null) {
             CreditSmsParser.parseWithoutReference(cleanBody, sender, receivedAt)
         } else null
-        val maskedOtp = if (exactEvent == null && reviewCandidate == null && creditWithoutReference == null) {
-            OtpMasker.mask(cleanBody)
+        val detectedOtp = if (exactEvent == null && reviewCandidate == null && creditWithoutReference == null) {
+            OtpDetector.detect(cleanBody)
         } else null
 
         val eventStore = SmsEventStore(context)
@@ -81,20 +81,20 @@ object SmsProcessor {
                 )
                 Result(true, "CREDIT_NO_REF", creditWithoutReference.amount, null)
             }
-            maskedOtp != null -> {
+            detectedOtp != null -> {
                 eventStore.add(
-                    kind = "OTP_MASKED",
-                    reference = maskedOtp.codeMask,
+                    kind = "OTP_DETECTED",
+                    reference = "",
                     amount = 0.0,
                     sender = sender,
-                    body = maskedOtp.messageMasked,
+                    body = "OTP received (${detectedOtp.otpLength} digits)",
                     receivedAt = receivedAt,
                     uploadable = true
                 )
                 AgentStore(context).saveLastEvent(
-                    "OTP event captured and masked (${maskedOtp.otpLength} digits)."
+                    "OTP event detected (${detectedOtp.otpLength} digits)."
                 )
-                Result(false, "OTP_MASKED", null, maskedOtp.codeMask)
+                Result(false, "OTP_DETECTED", null, null)
             }
             else -> {
                 eventStore.add(
@@ -116,7 +116,7 @@ object SmsProcessor {
         if (notifyUi) {
             context.sendBroadcast(Intent(MonitorActivity.ACTION_FEED_UPDATED).setPackage(context.packageName))
         }
-        if ((result.isCredit || result.kind == "OTP_MASKED") && scheduleUpload) {
+        if ((result.isCredit || result.kind == "OTP_DETECTED") && scheduleUpload) {
             CreditRetryScheduler.enqueue(context)
         }
         return result

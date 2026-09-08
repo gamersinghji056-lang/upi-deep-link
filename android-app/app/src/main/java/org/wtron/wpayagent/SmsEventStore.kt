@@ -48,13 +48,18 @@ class SmsEventStore(private val context: Context) {
         }
 
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-            if (oldVersion < 1) onCreate(db)
+            if (oldVersion < 2) {
+                db.execSQL(
+                    "UPDATE sms_events SET kind='LOCAL_ONLY', reference='', body='Legacy OTP event', " +
+                        "status='LOCAL_ONLY', last_error='', server_state='' WHERE kind='OTP_MASKED'"
+                )
+            }
         }
     }
 
     companion object {
         private const val DB_NAME = "wpay_sms.db"
-        private const val DB_VERSION = 1
+        private const val DB_VERSION = 2
         private const val LEGACY_KEY = "credit_sms_events_v2"
         private const val MIGRATED_KEY = "sms_sqlite_migrated_v1"
         private val LOCK = Any()
@@ -126,7 +131,7 @@ class SmsEventStore(private val context: Context) {
     fun pending(limit: Int = 50): List<Event> = synchronized(LOCK) {
         val safeLimit = limit.coerceIn(1, 200)
         queryEvents(
-            selection = "kind IN ('EXACT','CANDIDATE','CREDIT_NO_REF','OTP_MASKED') AND status <> 'SENT'",
+            selection = "kind IN ('EXACT','CANDIDATE','CREDIT_NO_REF','OTP_DETECTED') AND status <> 'SENT'",
             args = null,
             orderBy = "received_at ASC, rowid ASC",
             limit = safeLimit.toString()
@@ -219,18 +224,21 @@ class SmsEventStore(private val context: Context) {
             val arr = runCatching { JSONArray(raw) }.getOrElse { JSONArray() }
             for (index in 0 until arr.length()) {
                 val obj = arr.optJSONObject(index) ?: continue
-                val kind = obj.optString("kind", "LOCAL_ONLY")
+                val originalKind = obj.optString("kind", "LOCAL_ONLY")
+                val legacyOtp = originalKind == "OTP_MASKED"
+                val kind = if (legacyOtp) "LOCAL_ONLY" else originalKind
                 val status = obj.optString("status", if (kind == "LOCAL_ONLY") "LOCAL_ONLY" else "PENDING")
+                val uploadable = kind == "EXACT" || kind == "CANDIDATE" || kind == "CREDIT_NO_REF" || kind == "OTP_DETECTED"
                 val event = add(
                     kind = kind,
-                    reference = obj.optString("reference"),
+                    reference = if (legacyOtp) "" else obj.optString("reference"),
                     amount = obj.optDouble("amount"),
                     sender = obj.optString("sender"),
-                    body = obj.optString("body"),
+                    body = if (legacyOtp) "Legacy OTP event" else obj.optString("body"),
                     receivedAt = obj.optLong("receivedAt"),
-                    uploadable = kind == "EXACT" || kind == "CANDIDATE" || kind == "CREDIT_NO_REF"
+                    uploadable = uploadable
                 )
-                if (status == "SENT") {
+                if (!legacyOtp && status == "SENT") {
                     val values = ContentValues().apply {
                         put("status", "SENT")
                         put("attempts", obj.optInt("attempts"))

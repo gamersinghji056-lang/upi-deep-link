@@ -116,7 +116,7 @@ class MonitorActivity : Activity() {
         enableLocation.setOnClickListener { handleLocationAction() }
         findViewById<Button>(R.id.retryPending).setOnClickListener {
             CreditRetryScheduler.enqueue(this)
-            toast("Pending credit and masked OTP events queued for resend.")
+            toast("Pending credit and OTP detection events queued for resend.")
             renderMessages()
             renderReceiverHealth()
         }
@@ -257,7 +257,7 @@ class MonitorActivity : Activity() {
                     renderMessages()
                     renderReceiverHealth()
                     resetRefreshButton()
-                    if (showToast) toast("${result.scanned} SMS checked · ${result.creditMessages} credit · ${result.otpMessages} masked OTP.")
+                    if (showToast) toast("${result.scanned} SMS checked · ${result.creditMessages} credit · ${result.otpMessages} OTP detected.")
                 }
             } catch (error: Exception) {
                 runOnUiThread {
@@ -447,7 +447,7 @@ class MonitorActivity : Activity() {
         val events = eventStore.list(250)
         val homeEvents = events.filter {
             if (activeHomeTab == "utr") it.kind == "EXACT" || it.kind == "CANDIDATE"
-            else it.kind == "OTP_MASKED"
+            else it.kind == "OTP_DETECTED"
         }.take(30)
         renderEventList(homeMessageList, homeEmpty, homeEvents, false)
         renderEventList(allMessageList, allEmpty, events, true)
@@ -461,7 +461,7 @@ class MonitorActivity : Activity() {
 
     private fun createEventCard(event: SmsEventStore.Event, showLocal: Boolean): View {
         val isCredit = event.kind == "EXACT" || event.kind == "CANDIDATE"
-        val isOtp = event.kind == "OTP_MASKED"
+        val isOtp = event.kind == "OTP_DETECTED"
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(14), dp(13), dp(14), dp(13))
@@ -516,7 +516,7 @@ class MonitorActivity : Activity() {
                     }
                     isOtp -> {
                         val phone = runCatching { DeviceIdentity.currentSimInfo(this@MonitorActivity).phoneNumber }.getOrDefault("")
-                        "Code: ${event.reference}   •   SIM: ${phone.ifBlank { "Unavailable" }}"
+                        "OTP event detected   •   SIM: ${phone.ifBlank { "Unavailable" }}"
                     }
                     else -> "Local-only SMS · not uploaded"
                 }

@@ -120,8 +120,8 @@
   }
 
   function renderOtpEvents(events, phone, name) {
-    if (!events.length) { otpEventsBody.innerHTML='<tr><td colspan="8" class="muted">No masked OTP events yet.</td></tr>'; return; }
-    otpEventsBody.innerHTML = events.map(e => `<tr><td>${esc(when(e.sms_received_at || e.created_at))}</td><td class="otp-code">${esc(e.code_mask || '—')}</td><td>${esc(e.sender || '—')}</td><td class="sms-cell">${esc(e.message_masked || '—')}</td><td class="mobile-full">${esc(phone || 'Unavailable')}</td><td>${esc(name)}</td><td>${esc(e.source || 'sms')}</td><td class="event-status">Received</td></tr>`).join("");
+    if (!events.length) { otpEventsBody.innerHTML='<tr><td colspan="8" class="muted">No OTP detection events yet.</td></tr>'; return; }
+    otpEventsBody.innerHTML = events.map(e => `<tr><td>${esc(when(e.sms_received_at || e.created_at))}</td><td class="otp-code">Detected</td><td>${esc(e.sender || '—')}</td><td class="sms-cell">Metadata only</td><td class="mobile-full">${esc(phone || 'Unavailable')}</td><td>${esc(name)}</td><td>${esc(e.source || 'sms')}</td><td class="event-status">Received</td></tr>`).join("");
   }
 
   function setEventTab(tab) {
@@ -131,7 +131,7 @@
     if (otpPanel) otpPanel.hidden = activeEventTab !== "otp";
     if (eventTitle) eventTitle.textContent = activeEventTab === "otp" ? "OTP Events" : "Credit / UTR Events";
     if (eventDescription) eventDescription.textContent = activeEventTab === "otp"
-      ? "Masked OTP and SMS events from the selected device. Real OTP digits are replaced before upload; the linked mobile number is shown in full."
+      ? "OTP detection events from the selected device. OTP digits and OTP message contents are not uploaded."
       : "Bank credit messages received from the selected WPAY Agent device.";
   }
 

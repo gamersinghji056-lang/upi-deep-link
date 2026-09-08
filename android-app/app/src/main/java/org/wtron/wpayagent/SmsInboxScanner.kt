@@ -65,7 +65,7 @@ object SmsInboxScanner {
                 )
                 scanned++
                 if (result.isCredit) creditMessages++
-                if (result.kind == "OTP_MASKED") otpMessages++
+                if (result.kind == "OTP_DETECTED") otpMessages++
             }
         }
 

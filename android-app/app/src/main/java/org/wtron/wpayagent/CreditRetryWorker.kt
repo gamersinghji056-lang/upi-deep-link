@@ -79,13 +79,10 @@ class CreditRetryWorker(appContext: Context, workerParams: WorkerParameters) : W
                             .put("receivedAt", receivedAt)
                         ApiClient.creditSmsNoReference(store, payload)
                     }
-                    "OTP_MASKED" -> {
+                    "OTP_DETECTED" -> {
                         val payload = JSONObject()
                             .put("simFingerprint", boundFingerprint)
                             .put("sender", event.sender)
-                            .put("codeMask", event.reference)
-                            .put("otpLength", event.reference.length)
-                            .put("messageMasked", event.body)
                             .put("receivedAt", receivedAt)
                             .put("source", "sms")
                         ApiClient.otpEvent(store, payload)
@@ -95,7 +92,10 @@ class CreditRetryWorker(appContext: Context, workerParams: WorkerParameters) : W
 
                 val serverState = response.optString("status", "received")
                 eventStore.markSent(event.id, serverState)
-                store.recordUploadSuccess(event.reference.ifBlank { "credit" }, serverState)
+                val summaryReference = event.reference.ifBlank {
+                    if (event.kind == "OTP_DETECTED") "otp" else "credit"
+                }
+                store.recordUploadSuccess(summaryReference, serverState)
             } catch (error: Exception) {
                 hadFailure = true
                 val message = error.message ?: "network error"
