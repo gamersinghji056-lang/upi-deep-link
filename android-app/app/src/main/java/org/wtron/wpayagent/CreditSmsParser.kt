@@ -41,8 +41,8 @@ object CreditSmsParser {
     )
 
     private fun normalizeText(body: String): String = body
-        .replace('\\n', ' ')
-        .replace('\\r', ' ')
+        .lines()
+        .joinToString(" ")
         .replace(Regex("\\s+"), " ")
         .trim()
 
