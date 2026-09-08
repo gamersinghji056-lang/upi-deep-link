@@ -1,0 +1,64 @@
+name: Vendor Smart UPI Parser
+
+on:
+  push:
+    paths:
+      - '.github/workflows/vendor-smart-upi-parser.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout WPAY repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout smart-upi-parser source
+        uses: actions/checkout@v4
+        with:
+          repository: gamersinghji056-lang/smart-upi-parser
+          ref: main
+          path: .smart-upi-parser-source
+
+      - name: Copy complete source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_SHA="$(git -C .smart-upi-parser-source rev-parse HEAD)"
+          rm -rf vendor/smart-upi-parser
+          mkdir -p vendor/smart-upi-parser
+          rsync -a --delete --exclude='.git' .smart-upi-parser-source/ vendor/smart-upi-parser/
+          printf '%s\n' "$SOURCE_SHA" > vendor/smart-upi-parser/.upstream-commit
+          rm -rf .smart-upi-parser-source
+
+      - name: Prepare browser parser runtime dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd vendor/smart-upi-parser
+          npm install --ignore-scripts --no-audit --no-fund
+          cd ../..
+          mkdir -p public/vendor/smart-upi-parser-runtime
+          cp vendor/smart-upi-parser/node_modules/xlsx/dist/xlsx.full.min.js public/vendor/smart-upi-parser-runtime/xlsx.full.min.js
+          cp vendor/smart-upi-parser/node_modules/pdfjs-dist/build/pdf.mjs public/vendor/smart-upi-parser-runtime/pdf.mjs
+          cp vendor/smart-upi-parser/node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/vendor/smart-upi-parser-runtime/pdf.worker.min.mjs
+          rm -rf vendor/smart-upi-parser/node_modules
+
+      - name: Commit vendored parser snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add vendor/smart-upi-parser public/vendor/smart-upi-parser-runtime
+          if git diff --cached --quiet; then
+            echo 'No vendor changes.'
+            exit 0
+          fi
+          git commit -m 'Vendor complete smart-upi-parser snapshot [skip ci]'
+          git push origin HEAD:main
