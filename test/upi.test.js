@@ -57,9 +57,9 @@ test("fragment and unusual scheme casing use unchanged generic fallback", () => 
   assert.throws(() => Upi.parse(raw + "\n"));
   assert.throws(() => Upi.parse("https://example.invalid?pa=fixture@bank"));
 });
-test("manual VPA mode uses percent encoding and never generates merchant metadata", () => {
+test("manual VPA mode uses percent encoding and marks the app-handoff intent channel", () => {
   const uri = Upi.manual("fixture@bank", "A + B", "10", "a&b");
-  assert.equal(uri, "upi://pay?pa=fixture%40bank&pn=A%20%2B%20B&am=10.00&cu=INR&tn=a%26b");
+  assert.equal(uri, "upi://pay?pa=fixture%40bank&pn=A%20%2B%20B&am=10.00&cu=INR&mode=04&tn=a%26b");
 });
 test("diagnostics hashes, character differences, original unknown and browser normalization", () => {
   const report = diagnose({ original_upi_uri: raw, upi_uri: raw, source: "merchant", profile: "exact", requested_amount: "10" });
