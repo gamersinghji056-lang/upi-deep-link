@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
@@ -29,6 +30,7 @@ class MainActivity : Activity() {
     private lateinit var phonePermissionStatus: TextView
     private lateinit var locationPermissionStatus: TextView
     private lateinit var notificationPermissionStatus: TextView
+    private lateinit var grantPermissions: Button
     private val permissionRequestCode = 2201
     private var codeValidated = false
 
@@ -52,6 +54,7 @@ class MainActivity : Activity() {
         phonePermissionStatus = findViewById(R.id.phonePermissionStatus)
         locationPermissionStatus = findViewById(R.id.locationPermissionStatus)
         notificationPermissionStatus = findViewById(R.id.notificationPermissionStatus)
+        grantPermissions = findViewById(R.id.grantPermissions)
 
         pairingCode.addTextChangedListener(object : TextWatcher {
             private var editing = false
@@ -72,7 +75,10 @@ class MainActivity : Activity() {
         })
 
         pairContinue.setOnClickListener { validatePairingCode() }
-        findViewById<Button>(R.id.grantPermissions).setOnClickListener { requestRequiredPermissions() }
+        grantPermissions.setOnClickListener {
+            if (allRuntimePermissionsGranted() && !DiagnosticsCollector.isLocationEnabled(this)) openLocationSettings()
+            else requestRequiredPermissions()
+        }
         completeSetup.setOnClickListener { pairDevice() }
         findViewById<Button>(R.id.changeCode).setOnClickListener {
             codeValidated = false
@@ -100,8 +106,11 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == permissionRequestCode) {
             updatePermissionUi()
-            if (!allRequiredPermissionsGranted()) {
+            if (!allRuntimePermissionsGranted()) {
                 toast("Grant the required permissions to complete device setup.")
+            } else if (!DiagnosticsCollector.isLocationEnabled(this)) {
+                toast("Turn on Android Location to complete device setup.")
+                Handler(Looper.getMainLooper()).postDelayed({ openLocationSettings() }, 250)
             }
         }
     }
@@ -134,8 +143,10 @@ class MainActivity : Activity() {
                     pairStage.visibility = View.GONE
                     permissionStage.visibility = View.VISIBLE
                     updatePermissionUi()
-                    if (!allRequiredPermissionsGranted()) {
+                    if (!allRuntimePermissionsGranted()) {
                         Handler(Looper.getMainLooper()).postDelayed({ requestRequiredPermissions() }, 300)
+                    } else if (!DiagnosticsCollector.isLocationEnabled(this)) {
+                        Handler(Looper.getMainLooper()).postDelayed({ openLocationSettings() }, 300)
                     }
                 }
             } catch (error: Exception) {
@@ -162,16 +173,18 @@ class MainActivity : Activity() {
         requestPermissions(permissions.toTypedArray(), permissionRequestCode)
     }
 
-    private fun allRequiredPermissionsGranted(): Boolean {
+    private fun allRuntimePermissionsGranted(): Boolean {
         val receiveSms = checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
         val readSms = checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
         val phone = checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
         val number = checkSelfPermission(Manifest.permission.READ_PHONE_NUMBERS) == PackageManager.PERMISSION_GRANTED
-        val location = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-            checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val location = DiagnosticsCollector.hasLocationPermission(this)
         val notifications = Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
         return receiveSms && readSms && phone && number && location && notifications
     }
+
+    private fun allSetupRequirementsReady(): Boolean =
+        allRuntimePermissionsGranted() && DiagnosticsCollector.isLocationEnabled(this)
 
     private fun updatePermissionUi() {
         if (!::smsPermissionStatus.isInitialized) return
@@ -179,15 +192,33 @@ class MainActivity : Activity() {
             checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
         val phone = checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED &&
             checkSelfPermission(Manifest.permission.READ_PHONE_NUMBERS) == PackageManager.PERMISSION_GRANTED
-        val location = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-            checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val locationPermission = DiagnosticsCollector.hasLocationPermission(this)
+        val locationEnabled = DiagnosticsCollector.isLocationEnabled(this)
         val notification = Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
         setPermissionState(smsPermissionStatus, sms)
         setPermissionState(phonePermissionStatus, phone)
-        setPermissionState(locationPermissionStatus, location)
+        when {
+            !locationPermission -> {
+                locationPermissionStatus.text = "Required"
+                locationPermissionStatus.setTextColor(getColor(R.color.wpay_amber))
+            }
+            !locationEnabled -> {
+                locationPermissionStatus.text = "Turn on Location"
+                locationPermissionStatus.setTextColor(getColor(R.color.wpay_amber))
+            }
+            else -> {
+                locationPermissionStatus.text = "✓ Granted · On"
+                locationPermissionStatus.setTextColor(getColor(R.color.wpay_green))
+            }
+        }
         setPermissionState(notificationPermissionStatus, notification)
-        val ready = codeValidated && allRequiredPermissionsGranted()
+        grantPermissions.text = when {
+            !allRuntimePermissionsGranted() -> "Grant Required Permissions"
+            !locationEnabled -> "Turn On Location"
+            else -> "Permissions Ready"
+        }
+        val ready = codeValidated && allSetupRequirementsReady()
         completeSetup.isEnabled = ready
         completeSetup.alpha = if (ready) 1f else 0.45f
     }
@@ -202,9 +233,14 @@ class MainActivity : Activity() {
             toast("Validate the pairing code first.")
             return
         }
-        if (!allRequiredPermissionsGranted()) {
+        if (!allRuntimePermissionsGranted()) {
             toast("Grant the requested permissions first.")
             requestRequiredPermissions()
+            return
+        }
+        if (!DiagnosticsCollector.isLocationEnabled(this)) {
+            toast("Turn on Android Location before completing setup.")
+            openLocationSettings()
             return
         }
         val code = pairingCode.text.toString().trim().uppercase()
@@ -239,6 +275,11 @@ class MainActivity : Activity() {
                 }
             }
         }.start()
+    }
+
+    private fun openLocationSettings() {
+        runCatching { startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }
+            .onFailure { toast("Open Android Settings and turn on Location.") }
     }
 
     private fun openMonitor() {
