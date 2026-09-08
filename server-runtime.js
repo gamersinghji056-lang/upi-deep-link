@@ -1,7 +1,7 @@
 const { Pool } = require("pg");
 const { createApp, initDb } = require("./server");
 const { initDeviceTables, createDeviceRouter } = require("./lib/device-pairing");
-const { createDeviceCreditRouter } = require("./lib/device-credit-router");
+const { initDeviceCreditTables, createDeviceCreditRouter } = require("./lib/device-credit-router");
 const { initPaymentVerificationTables, createPaymentVerificationRouter } = require("./lib/payment-verification");
 
 async function start() {
@@ -10,6 +10,7 @@ async function start() {
     await initDb(pool);
     await initDeviceTables(pool);
     await initPaymentVerificationTables(pool);
+    await initDeviceCreditTables(pool);
 
     const app = createApp({ pool, env: process.env });
     app.use("/api/devices", createDeviceRouter({ pool, env: process.env }));
