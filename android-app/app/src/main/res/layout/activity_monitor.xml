@@ -1,138 +1,182 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true"
-    android:background="#FFFFFF">
+    android:background="@drawable/bg_app"
+    android:orientation="vertical">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="20dp">
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingLeft="18dp"
+        android:paddingTop="16dp"
+        android:paddingRight="18dp"
+        android:paddingBottom="12dp">
+
+        <ImageView
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:contentDescription="WPAY Agent"
+            android:src="@drawable/ic_wpay_logo" />
 
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="WPAY Agent"
-                android:textColor="#111827"
-                android:textSize="27sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/onlineStatus"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingLeft="14dp"
-                android:paddingTop="7dp"
-                android:paddingRight="14dp"
-                android:paddingBottom="7dp"
-                android:text="Checking..."
-                android:textSize="14sp"
-                android:textStyle="bold" />
+            android:layout_marginLeft="9dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="WPAY Agent" android:textColor="@color/wpay_text" android:textSize="22sp" android:textStyle="bold" />
+            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Smart Payment Device Monitor" android:textColor="@color/wpay_muted" android:textSize="10sp" />
         </LinearLayout>
 
         <TextView
-            android:layout_width="match_parent"
+            android:id="@+id/onlineStatus"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Connected payment device"
-            android:textColor="#6B7280"
-            android:textSize="14sp" />
-
-        <TextView
-            android:id="@+id/deviceStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:background="#F3F4F6"
-            android:padding="16dp"
-            android:text="Loading device status..."
-            android:textColor="#374151"
-            android:textSize="14sp" />
-
-        <TextView
-            android:id="@+id/receiverHealth"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:background="#F8FAFC"
-            android:padding="14dp"
-            android:text="SMS receiver health loading..."
-            android:textColor="#374151"
-            android:textSize="13sp" />
-
-        <Button
-            android:id="@+id/refreshSms"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:text="Refresh Latest SMS" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal">
-
-            <Button
-                android:id="@+id/retryPending"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Retry Pending" />
-
-            <Space
-                android:layout_width="8dp"
-                android:layout_height="1dp" />
-
-            <Button
-                android:id="@+id/disconnectDevice"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Disconnect" />
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="28dp"
-            android:text="SMS monitor"
-            android:textColor="#111827"
-            android:textSize="20sp"
+            android:background="@drawable/bg_online"
+            android:text="●  Online"
+            android:textColor="#9EF2C8"
+            android:textSize="12sp"
             android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:text="Newest SMS appear first. All captured SMS stay local on this phone; only messages classified as UPI credits are uploaded for payment verification."
-            android:textColor="#6B7280"
-            android:textSize="13sp" />
-
-        <TextView
-            android:id="@+id/emptyMessages"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:text="No SMS captured yet. Incoming SMS are captured automatically; Refresh Latest SMS reconciles the latest inbox messages."
-            android:textColor="#6B7280"
-            android:textSize="14sp" />
-
-        <LinearLayout
-            android:id="@+id/messageList"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="14dp"
-            android:orientation="vertical" />
-
     </LinearLayout>
-</ScrollView>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <ScrollView
+            android:id="@+id/homeView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:overScrollMode="never">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingLeft="18dp"
+                android:paddingRight="18dp"
+                android:paddingBottom="18dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_card"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical" android:orientation="horizontal">
+                        <ImageView android:layout_width="25dp" android:layout_height="25dp" android:src="@drawable/ic_shield" android:contentDescription="Status" />
+                        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginLeft="8dp" android:layout_weight="1" android:text="Device Status" android:textColor="@color/wpay_text" android:textSize="18sp" android:textStyle="bold" />
+                        <Button
+                            android:id="@+id/refreshSms"
+                            android:layout_width="wrap_content"
+                            android:layout_height="42dp"
+                            android:background="@drawable/bg_secondary"
+                            android:compoundDrawablePadding="6dp"
+                            android:drawableStart="@drawable/ic_refresh"
+                            android:paddingLeft="12dp"
+                            android:paddingRight="12dp"
+                            android:stateListAnimator="@null"
+                            android:text="Refresh"
+                            android:textAllCaps="false"
+                            android:textColor="@color/wpay_text"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:orientation="horizontal">
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginRight="5dp" android:layout_weight="1" android:background="@drawable/bg_tile" android:orientation="vertical" android:padding="13dp">
+                            <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_phone" android:contentDescription="SIM" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="7dp" android:text="SIM Number" android:textColor="@color/wpay_muted" android:textSize="10sp" />
+                            <TextView android:id="@+id/simNumberValue" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:text="Loading..." android:textColor="@color/wpay_text" android:textSize="14sp" android:textStyle="bold" />
+                        </LinearLayout>
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginLeft="5dp" android:layout_weight="1" android:background="@drawable/bg_tile" android:orientation="vertical" android:padding="13dp">
+                            <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_battery" android:contentDescription="Battery" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="7dp" android:text="Battery Health" android:textColor="@color/wpay_muted" android:textSize="10sp" />
+                            <TextView android:id="@+id/batteryValue" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:text="—" android:textColor="@color/wpay_text" android:textSize="14sp" android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:orientation="horizontal">
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginRight="5dp" android:layout_weight="1" android:background="@drawable/bg_tile" android:orientation="vertical" android:padding="13dp">
+                            <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_network" android:contentDescription="Network" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="7dp" android:text="Network Type" android:textColor="@color/wpay_muted" android:textSize="10sp" />
+                            <TextView android:id="@+id/networkValue" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:text="—" android:textColor="@color/wpay_text" android:textSize="14sp" android:textStyle="bold" />
+                        </LinearLayout>
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginLeft="5dp" android:layout_weight="1" android:background="@drawable/bg_tile" android:orientation="vertical" android:padding="13dp">
+                            <ImageView android:layout_width="24dp" android:layout_height="24dp" android:src="@drawable/ic_shield" android:contentDescription="Connection" />
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="7dp" android:text="Connection Status" android:textColor="@color/wpay_muted" android:textSize="10sp" />
+                            <TextView android:id="@+id/connectionValue" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="3dp" android:text="Checking..." android:textColor="@color/wpay_text" android:textSize="14sp" android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:background="@drawable/bg_tile" android:gravity="center_vertical" android:orientation="horizontal" android:padding="13dp">
+                        <ImageView android:layout_width="26dp" android:layout_height="26dp" android:src="@drawable/ic_location" android:contentDescription="Location" />
+                        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_marginLeft="10dp" android:layout_weight="1" android:orientation="vertical">
+                            <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Location" android:textColor="@color/wpay_muted" android:textSize="10sp" />
+                            <TextView android:id="@+id/locationValue" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="Waiting for location" android:textColor="@color/wpay_text" android:textSize="14sp" android:textStyle="bold" />
+                            <TextView android:id="@+id/locationSub" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:text="—" android:textColor="@color/wpay_muted" android:textSize="10sp" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="14dp" android:background="@drawable/bg_card" android:orientation="horizontal" android:padding="4dp">
+                    <Button android:id="@+id/tabUtr" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@drawable/bg_primary" android:stateListAnimator="@null" android:text="UTR Events" android:textAllCaps="false" android:textColor="@color/wpay_text" android:textStyle="bold" />
+                    <Button android:id="@+id/tabOtp" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@android:color/transparent" android:stateListAnimator="@null" android:text="OTP Events" android:textAllCaps="false" android:textColor="@color/wpay_muted" android:textStyle="bold" />
+                </LinearLayout>
+
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="Recent Events" android:textColor="@color/wpay_text" android:textSize="17sp" android:textStyle="bold" />
+                <TextView android:id="@+id/homeEmpty" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:text="No matching events yet." android:textColor="@color/wpay_muted" android:textSize="13sp" />
+                <LinearLayout android:id="@+id/homeMessageList" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:orientation="vertical" />
+            </LinearLayout>
+        </ScrollView>
+
+        <ScrollView
+            android:id="@+id/eventsView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:overScrollMode="never"
+            android:visibility="gone">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingLeft="18dp" android:paddingRight="18dp" android:paddingBottom="18dp">
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="All SMS Events" android:textColor="@color/wpay_text" android:textSize="22sp" android:textStyle="bold" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="5dp" android:text="Newest SMS appear first. Normal SMS stay local; UPI credits and masked OTP events sync automatically." android:textColor="@color/wpay_muted" android:textSize="12sp" />
+                <Button android:id="@+id/retryPending" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="14dp" android:background="@drawable/bg_secondary" android:stateListAnimator="@null" android:text="Retry Pending Sync" android:textAllCaps="false" android:textColor="@color/wpay_text" android:textStyle="bold" />
+                <TextView android:id="@+id/allEmpty" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="No SMS captured yet." android:textColor="@color/wpay_muted" android:textSize="13sp" />
+                <LinearLayout android:id="@+id/allMessageList" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:orientation="vertical" />
+            </LinearLayout>
+        </ScrollView>
+
+        <ScrollView
+            android:id="@+id/settingsView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:overScrollMode="never"
+            android:visibility="gone">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:paddingLeft="18dp" android:paddingRight="18dp" android:paddingBottom="18dp">
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Agent Settings" android:textColor="@color/wpay_text" android:textSize="22sp" android:textStyle="bold" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="5dp" android:text="Connection and receiver diagnostics" android:textColor="@color/wpay_muted" android:textSize="12sp" />
+                <TextView android:id="@+id/receiverHealth" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:background="@drawable/bg_card" android:lineSpacingExtra="3dp" android:padding="16dp" android:text="SMS receiver health loading..." android:textColor="#C9BFE0" android:textSize="12sp" />
+                <Button android:id="@+id/disconnectDevice" android:layout_width="match_parent" android:layout_height="50dp" android:layout_marginTop="14dp" android:background="@drawable/bg_secondary" android:stateListAnimator="@null" android:text="Disconnect This Device" android:textAllCaps="false" android:textColor="@color/wpay_red" android:textStyle="bold" />
+            </LinearLayout>
+        </ScrollView>
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="66dp"
+        android:background="#0C071C"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingLeft="10dp"
+        android:paddingRight="10dp">
+        <TextView android:id="@+id/navHome" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:drawableTop="@drawable/ic_home" android:gravity="center" android:paddingTop="7dp" android:text="Home" android:textColor="#AA8CFF" android:textSize="10sp" android:textStyle="bold" />
+        <TextView android:id="@+id/navEvents" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:drawableTop="@drawable/ic_events" android:gravity="center" android:paddingTop="7dp" android:text="Events" android:textColor="#82779A" android:textSize="10sp" android:textStyle="bold" />
+        <TextView android:id="@+id/navSettings" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:drawableTop="@drawable/ic_settings" android:gravity="center" android:paddingTop="7dp" android:text="Settings" android:textColor="#82779A" android:textSize="10sp" android:textStyle="bold" />
+    </LinearLayout>
+</LinearLayout>
