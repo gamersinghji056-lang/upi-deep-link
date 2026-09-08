@@ -16,7 +16,7 @@ class AgentStore(context: Context) {
         get() = prefs.getString("sim_fingerprint", null)
 
     val lastEvent: String
-        get() = prefs.getString("last_event", "No credit SMS processed yet.") ?: "No credit SMS processed yet."
+        get() = prefs.getString("last_event", "No SMS event processed yet.") ?: "No SMS event processed yet."
 
     val lastSmsBroadcastAt: Long
         get() = prefs.getLong("last_sms_broadcast_at", 0L)
@@ -37,7 +37,7 @@ class AgentStore(context: Context) {
         get() = prefs.getLong("last_upload_at", 0L)
 
     val lastUploadSummary: String
-        get() = prefs.getString("last_upload_summary", "No credit uploaded yet") ?: "No credit uploaded yet"
+        get() = prefs.getString("last_upload_summary", "No event uploaded yet") ?: "No event uploaded yet"
 
     val lastUploadError: String
         get() = prefs.getString("last_upload_error", "") ?: ""
@@ -104,11 +104,11 @@ class AgentStore(context: Context) {
             .apply()
     }
 
-    fun recordInboxRefresh(scanned: Int, credits: Int, newestAt: Long?, oldestAt: Long?) {
+    fun recordInboxRefresh(scanned: Int, credits: Int, otps: Int, newestAt: Long?, oldestAt: Long?) {
         val range = if (newestAt != null && oldestAt != null) "$newestAt..$oldestAt" else "empty"
         prefs.edit()
             .putLong("last_inbox_refresh_at", System.currentTimeMillis())
-            .putString("last_inbox_refresh_summary", "$scanned checked · $credits credit · $range")
+            .putString("last_inbox_refresh_summary", "$scanned checked · $credits credit · $otps OTP · $range")
             .apply()
     }
 
