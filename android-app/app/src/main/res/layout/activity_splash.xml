@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_app">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="28dp">
+
+        <ImageView
+            android:layout_width="150dp"
+            android:layout_height="150dp"
+            android:contentDescription="WPAY Agent"
+            android:src="@drawable/ic_wpay_logo" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="WPAY Agent"
+            android:textColor="@color/wpay_text"
+            android:textSize="36sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="7dp"
+            android:text="Smart Payment Device Monitor"
+            android:textColor="@color/wpay_muted"
+            android:textSize="14sp" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_marginBottom="30dp"
+        android:gravity="center"
+        android:letterSpacing="0.18"
+        android:text="CONNECT  •  MONITOR  •  STAY AHEAD"
+        android:textColor="#9185AF"
+        android:textSize="10sp" />
+</FrameLayout>
