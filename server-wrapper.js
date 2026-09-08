@@ -1,6 +1,6 @@
 const { Pool } = require("pg");
 const { createApp, initDb } = require("./server");
-const { initDeviceTables, createDeviceRouter } = require("./lib/device-pairing");
+const { initDeviceTables, createDeviceRouter, sha256 } = require("./lib/device-pairing");
 const { initDeviceCreditTables, createDeviceCreditRouter } = require("./lib/device-credit-router");
 const { initPaymentVerificationTables, createPaymentVerificationRouter } = require("./lib/payment-verification");
 const { initDeviceOtpTables, createDeviceOtpRouter } = require("./lib/device-otp-router");
@@ -15,6 +15,22 @@ async function start() {
     await initDeviceOtpTables(pool);
 
     const app = createApp({ pool, env: process.env });
+
+    app.post("/api/devices/pairing-token/validate", async (req, res, next) => {
+      try {
+        if (!pool) return res.status(503).json({ error: "Database is not configured" });
+        const code = String(req.body?.pairingCode || "").trim().toUpperCase();
+        if (!/^[A-Z2-9]{8}$/.test(code)) return res.status(400).json({ error: "Enter a valid 8-character pairing code" });
+        const result = await pool.query(
+          `select expires_at from device_pairings where token_hash=$1 and status='pending' and expires_at>now() limit 1`,
+          [sha256(code)]
+        );
+        if (!result.rowCount) return res.status(410).json({ error: "Pairing code is invalid or expired" });
+        const expiresInSeconds = Math.max(0, Math.floor((new Date(result.rows[0].expires_at).getTime() - Date.now()) / 1000));
+        res.json({ ok: true, status: "pending", expiresInSeconds });
+      } catch (error) { next(error); }
+    });
+
     app.use("/api/devices", createDeviceRouter({ pool, env: process.env }));
     app.use("/api/devices", createDeviceCreditRouter({ pool }));
     app.use("/api/devices", createDeviceOtpRouter({ pool }));
