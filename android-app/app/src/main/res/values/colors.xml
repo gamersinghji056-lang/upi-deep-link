@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="wpay_bg">#090617</color>
+    <color name="wpay_bg_2">#100824</color>
+    <color name="wpay_surface">#140C2C</color>
+    <color name="wpay_surface_2">#1A1038</color>
+    <color name="wpay_surface_3">#211548</color>
+    <color name="wpay_line">#3A2861</color>
+    <color name="wpay_text">#F8F5FF</color>
+    <color name="wpay_muted">#A79CC3</color>
+    <color name="wpay_primary">#7C4DFF</color>
+    <color name="wpay_primary_2">#9B6DFF</color>
+    <color name="wpay_blue">#55C6FF</color>
+    <color name="wpay_green">#35D78A</color>
+    <color name="wpay_amber">#FFB84D</color>
+    <color name="wpay_red">#FF6F7D</color>
+</resources>
