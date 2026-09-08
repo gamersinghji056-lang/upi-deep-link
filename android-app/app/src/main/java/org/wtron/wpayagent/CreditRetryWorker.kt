@@ -4,9 +4,11 @@ import android.content.Context
 import android.content.Intent
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
@@ -22,11 +24,16 @@ class CreditRetryWorker(appContext: Context, workerParams: WorkerParameters) : W
         val sim = DeviceIdentity.currentSimInfo(applicationContext)
         if (!sim.hasActiveSim || sim.fingerprint != store.simFingerprint) return Result.retry()
 
-        val eventStore = SmsEventStore(applicationContext)
-        val pending = eventStore.pending().take(20)
-        if (pending.isEmpty()) return Result.success()
-
         var hadFailure = false
+        try {
+            ApiClient.heartbeat(store, sim.fingerprint)
+            ApiClient.diagnostics(store, DiagnosticsCollector.collect(applicationContext, sim.fingerprint))
+        } catch (_: Exception) {
+            hadFailure = true
+        }
+
+        val eventStore = SmsEventStore(applicationContext)
+        val pending = eventStore.pending().take(50)
         pending.forEach { event ->
             try {
                 val payload = JSONObject()
@@ -58,16 +65,26 @@ class CreditRetryWorker(appContext: Context, workerParams: WorkerParameters) : W
 
 object CreditRetryScheduler {
     private const val UNIQUE_WORK = "wpay-credit-upload-retry"
+    private const val PERIODIC_WORK = "wpay-background-sync"
+
+    private fun connectedConstraints() = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
 
     fun enqueue(context: Context) {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
         val request = OneTimeWorkRequestBuilder<CreditRetryWorker>()
-            .setConstraints(constraints)
+            .setConstraints(connectedConstraints())
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
         WorkManager.getInstance(context.applicationContext)
             .enqueueUniqueWork(UNIQUE_WORK, ExistingWorkPolicy.REPLACE, request)
+    }
+
+    fun ensurePeriodic(context: Context) {
+        val request = PeriodicWorkRequestBuilder<CreditRetryWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(connectedConstraints())
+            .build()
+        WorkManager.getInstance(context.applicationContext)
+            .enqueueUniquePeriodicWork(PERIODIC_WORK, ExistingPeriodicWorkPolicy.KEEP, request)
     }
 }
