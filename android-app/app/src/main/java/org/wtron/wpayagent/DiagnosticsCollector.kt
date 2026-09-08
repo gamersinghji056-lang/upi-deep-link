@@ -10,8 +10,13 @@ import android.location.LocationManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.BatteryManager
+import android.os.Build
 import android.telephony.TelephonyManager
 import org.json.JSONObject
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executor
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 object DiagnosticsCollector {
     fun collect(context: Context, simFingerprint: String): JSONObject {
@@ -33,6 +38,7 @@ object DiagnosticsCollector {
             else -> "OTHER"
         }
         val carrier = context.getSystemService(TelephonyManager::class.java)?.networkOperatorName.orEmpty()
+        val locationManager = context.getSystemService(LocationManager::class.java)
 
         val result = JSONObject()
             .put("simFingerprint", simFingerprint)
@@ -40,21 +46,49 @@ object DiagnosticsCollector {
             .put("charging", charging)
             .put("networkType", networkType)
             .put("carrier", carrier)
+            .put("locationEnabled", runCatching { locationManager.isLocationEnabled }.getOrDefault(false))
 
-        bestLastKnownLocation(context)?.let { location ->
+        currentOrLastLocation(context)?.let { location ->
             result.put("location", JSONObject()
                 .put("latitude", location.latitude)
                 .put("longitude", location.longitude)
-                .put("accuracy", location.accuracy.toDouble()))
+                .put("accuracy", location.accuracy.toDouble())
+                .put("provider", location.provider ?: ""))
         }
         return result
     }
 
-    private fun bestLastKnownLocation(context: Context): Location? {
+    private fun currentOrLastLocation(context: Context): Location? {
         val fine = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val coarse = context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         if (!fine && !coarse) return null
+
         val manager = context.getSystemService(LocationManager::class.java)
+        val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+            .filter { runCatching { manager.isProviderEnabled(it) }.getOrDefault(false) }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            for (provider in providers) {
+                val latch = CountDownLatch(1)
+                val result = AtomicReference<Location?>(null)
+                try {
+                    manager.getCurrentLocation(
+                        provider,
+                        null,
+                        Executor { command -> command.run() }
+                    ) { location ->
+                        result.set(location)
+                        latch.countDown()
+                    }
+                    latch.await(4, TimeUnit.SECONDS)
+                    result.get()?.let { return it }
+                } catch (_: SecurityException) {
+                    return null
+                } catch (_: Exception) {
+                }
+            }
+        }
+
         return try {
             manager.getProviders(true)
                 .mapNotNull { provider -> runCatching { manager.getLastKnownLocation(provider) }.getOrNull() }
