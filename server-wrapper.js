@@ -7,6 +7,7 @@ const { initDeviceCreditTables, createDeviceCreditRouter } = require("./lib/devi
 const { initPaymentVerificationTables, createPaymentVerificationRouter } = require("./lib/payment-verification");
 const { initDeviceOtpTables, createDeviceOtpRouter } = require("./lib/device-otp-router");
 const { initStatementTables, createStatementMatchRouter } = require("./lib/statement-match-router");
+const { initDeviceLocationHistoryTables, createDeviceLocationHistoryRouter } = require("./lib/device-location-history");
 const { requireDashboard, loginHandler, logoutHandler } = require("./lib/dashboard-auth");
 
 async function start() {
@@ -14,6 +15,7 @@ async function start() {
   try {
     await initDb(pool);
     await initDeviceTables(pool);
+    await initDeviceLocationHistoryTables(pool);
     await initPaymentVerificationTables(pool);
     await initDeviceCreditTables(pool);
     await initDeviceOtpTables(pool);
@@ -57,6 +59,7 @@ async function start() {
     app.use("/api/devices", createDeviceRouter({ pool, env: process.env }));
     app.use("/api/devices", createDeviceCreditRouter({ pool }));
     app.use("/api/devices", createDeviceOtpRouter({ pool }));
+    app.use("/api/devices", createDeviceLocationHistoryRouter({ pool }));
     app.use("/api/statements", createStatementMatchRouter({ pool }));
     app.use("/api", createPaymentVerificationRouter({ pool }));
     app.use(coreApp);
