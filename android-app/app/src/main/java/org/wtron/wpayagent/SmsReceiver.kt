@@ -21,7 +21,8 @@ class SmsReceiver : BroadcastReceiver() {
                 if (body.isBlank()) return@Thread
 
                 val store = AgentStore(context)
-                store.recordSmsBroadcast(sender, body, receivedAt)
+                val safePreviewBody = OtpMasker.mask(body)?.messageMasked ?: body
+                store.recordSmsBroadcast(sender, safePreviewBody, receivedAt)
 
                 if (!store.isPaired) {
                     store.recordClassification("RECEIVED_NOT_PAIRED", null, null)
