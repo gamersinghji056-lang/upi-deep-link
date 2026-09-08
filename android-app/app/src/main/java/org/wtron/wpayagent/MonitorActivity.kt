@@ -69,7 +69,7 @@ class MonitorActivity : Activity() {
         refreshSms.setOnClickListener { refreshInbox() }
         findViewById<Button>(R.id.retryPending).setOnClickListener {
             CreditRetryScheduler.enqueue(this)
-            toast("Pending payment-credit messages queued for resend.")
+            toast("Pending credit and masked OTP events queued for resend.")
             renderMessages()
             renderReceiverHealth()
         }
@@ -169,7 +169,7 @@ class MonitorActivity : Activity() {
                     refreshSms.isEnabled = true
                     refreshSms.text = "Refresh Latest SMS"
                     if (showToast) {
-                        toast("${result.scanned} latest inbox SMS checked · ${result.creditMessages} UPI credit message(s) found.")
+                        toast("${result.scanned} latest SMS checked · ${result.creditMessages} credit · ${result.otpMessages} masked OTP.")
                     }
                 }
             } catch (error: Exception) {
@@ -224,7 +224,7 @@ class MonitorActivity : Activity() {
             } catch (error: Exception) {
                 runOnUiThread {
                     showOnline(false, "Offline")
-                    deviceStatus.text = "Server connection unavailable. Credit messages stay queued and retry automatically."
+                    deviceStatus.text = "Server connection unavailable. Credit and masked OTP events stay queued and retry automatically."
                     store.recordUploadError(error.message ?: "Server connection unavailable")
                     renderReceiverHealth()
                 }
@@ -260,6 +260,7 @@ class MonitorActivity : Activity() {
 
         events.forEach { event ->
             val isCredit = event.kind == "EXACT" || event.kind == "CANDIDATE"
+            val isOtp = event.kind == "OTP_MASKED"
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(18, 16, 18, 16)
@@ -277,15 +278,23 @@ class MonitorActivity : Activity() {
             })
 
             card.addView(TextView(this).apply {
-                text = if (isCredit) {
-                    val refLabel = if (event.kind == "EXACT") "UTR/RRN" else "Reference candidate"
-                    "UPI CREDIT · ₹${String.format(Locale.US, "%.2f", event.amount)} · $refLabel ${event.reference}"
-                } else {
-                    "SMS · Local only"
+                text = when {
+                    isCredit -> {
+                        val refLabel = if (event.kind == "EXACT") "UTR/RRN" else "Reference candidate"
+                        "UPI CREDIT · ₹${String.format(Locale.US, "%.2f", event.amount)} · $refLabel ${event.reference}"
+                    }
+                    isOtp -> "OTP EVENT · ${event.reference} · masked before storage/upload"
+                    else -> "SMS · Local only"
                 }
                 textSize = 16f
                 setTypeface(typeface, Typeface.BOLD)
-                setTextColor(if (isCredit) Color.rgb(21, 128, 61) else Color.BLACK)
+                setTextColor(
+                    when {
+                        isCredit -> Color.rgb(21, 128, 61)
+                        isOtp -> Color.rgb(3, 105, 161)
+                        else -> Color.BLACK
+                    }
+                )
                 setPadding(0, 8, 0, 8)
             })
 
@@ -297,7 +306,7 @@ class MonitorActivity : Activity() {
 
             card.addView(TextView(this).apply {
                 text = when {
-                    !isCredit -> "Not sent · this SMS stays local"
+                    !isCredit && !isOtp -> "Not sent · this SMS stays local"
                     event.status == "SENT" -> if (event.serverState.isNotBlank()) "Sent to system · ${event.serverState}" else "Sent to system"
                     event.lastError.isNotBlank() -> "Pending · automatic resend · ${event.lastError}"
                     else -> "Pending · automatic resend"
@@ -306,7 +315,7 @@ class MonitorActivity : Activity() {
                 setTypeface(typeface, Typeface.BOLD)
                 setTextColor(
                     when {
-                        !isCredit -> Color.rgb(107, 114, 128)
+                        !isCredit && !isOtp -> Color.rgb(107, 114, 128)
                         event.status == "SENT" -> Color.rgb(22, 163, 74)
                         else -> Color.rgb(217, 119, 6)
                     }
