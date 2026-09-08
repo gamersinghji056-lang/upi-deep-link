@@ -14,6 +14,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -37,9 +38,12 @@ class MonitorActivity : Activity() {
     private lateinit var simNumberValue: TextView
     private lateinit var batteryValue: TextView
     private lateinit var networkValue: TextView
+    private lateinit var networkSub: TextView
     private lateinit var connectionValue: TextView
+    private lateinit var connectionSub: TextView
     private lateinit var locationValue: TextView
     private lateinit var locationSub: TextView
+    private lateinit var enableLocation: Button
     private lateinit var receiverHealth: TextView
     private lateinit var homeMessageList: LinearLayout
     private lateinit var allMessageList: LinearLayout
@@ -59,6 +63,7 @@ class MonitorActivity : Activity() {
     private var receiverRegistered = false
     private var activeHomeTab = "utr"
     private val readSmsPermissionRequestCode = 4402
+    private val locationPermissionRequestCode = 4403
 
     private val feedReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -83,9 +88,12 @@ class MonitorActivity : Activity() {
         simNumberValue = findViewById(R.id.simNumberValue)
         batteryValue = findViewById(R.id.batteryValue)
         networkValue = findViewById(R.id.networkValue)
+        networkSub = findViewById(R.id.networkSub)
         connectionValue = findViewById(R.id.connectionValue)
+        connectionSub = findViewById(R.id.connectionSub)
         locationValue = findViewById(R.id.locationValue)
         locationSub = findViewById(R.id.locationSub)
+        enableLocation = findViewById(R.id.enableLocation)
         receiverHealth = findViewById(R.id.receiverHealth)
         homeMessageList = findViewById(R.id.homeMessageList)
         allMessageList = findViewById(R.id.allMessageList)
@@ -105,6 +113,7 @@ class MonitorActivity : Activity() {
             refreshConnectionAndDiagnostics()
             refreshInbox()
         }
+        enableLocation.setOnClickListener { handleLocationAction() }
         findViewById<Button>(R.id.retryPending).setOnClickListener {
             CreditRetryScheduler.enqueue(this)
             toast("Pending credit and masked OTP events queued for resend.")
@@ -129,7 +138,6 @@ class MonitorActivity : Activity() {
         showSection("home")
         renderMessages()
         renderReceiverHealth()
-        refreshConnectionAndDiagnostics()
         autoReconcileInbox()
     }
 
@@ -159,7 +167,9 @@ class MonitorActivity : Activity() {
         running = true
         renderMessages()
         renderReceiverHealth()
-        handler.post(statusLoop)
+        handler.removeCallbacks(statusLoop)
+        refreshConnectionAndDiagnostics()
+        handler.postDelayed(statusLoop, 30_000)
     }
 
     override fun onPause() {
@@ -170,10 +180,21 @@ class MonitorActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == readSmsPermissionRequestCode) {
-            if (checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED) {
-                scanInboxInBackground(showToast = true, limit = 500)
-            } else toast("SMS inbox permission is required for Refresh.")
+        when (requestCode) {
+            readSmsPermissionRequestCode -> {
+                if (checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED) {
+                    scanInboxInBackground(showToast = true, limit = 500)
+                } else toast("SMS inbox permission is required for Refresh.")
+            }
+            locationPermissionRequestCode -> {
+                if (DiagnosticsCollector.hasLocationPermission(this)) {
+                    if (DiagnosticsCollector.isLocationEnabled(this)) refreshConnectionAndDiagnostics()
+                    else openLocationSettings()
+                } else {
+                    toast("Location permission is required for device diagnostics.")
+                    renderLocationActionState()
+                }
+            }
         }
     }
 
@@ -254,6 +275,50 @@ class MonitorActivity : Activity() {
         refreshSms.text = "Refresh"
     }
 
+    private fun handleLocationAction() {
+        if (!DiagnosticsCollector.hasLocationPermission(this)) {
+            requestPermissions(
+                arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION),
+                locationPermissionRequestCode
+            )
+            return
+        }
+        if (!DiagnosticsCollector.isLocationEnabled(this)) {
+            openLocationSettings()
+            return
+        }
+        refreshConnectionAndDiagnostics()
+        toast("Refreshing current location...")
+    }
+
+    private fun openLocationSettings() {
+        runCatching { startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)) }
+            .onFailure { toast("Open Android Settings and turn on Location.") }
+    }
+
+    private fun renderLocationActionState() {
+        when {
+            !DiagnosticsCollector.hasLocationPermission(this) -> {
+                locationValue.text = "Location permission required"
+                locationSub.text = "Grant location access for current diagnostics"
+                enableLocation.text = "Grant"
+                enableLocation.visibility = View.VISIBLE
+            }
+            !DiagnosticsCollector.isLocationEnabled(this) -> {
+                locationValue.text = "Location services off"
+                locationSub.text = "Turn on Android Location, then return to WPAY"
+                enableLocation.text = "Enable"
+                enableLocation.visibility = View.VISIBLE
+            }
+            else -> {
+                locationValue.text = "Acquiring current location"
+                locationSub.text = "GPS / network location is being requested"
+                enableLocation.text = "Retry"
+                enableLocation.visibility = View.VISIBLE
+            }
+        }
+    }
+
     private fun refreshConnectionAndDiagnostics() {
         Thread {
             try {
@@ -263,7 +328,8 @@ class MonitorActivity : Activity() {
                     runOnUiThread {
                         showOnline(false, "SIM mismatch")
                         connectionValue.text = "SIM mismatch"
-                        simNumberValue.text = sim.phoneNumber.ifBlank { "Unavailable" }
+                        connectionSub.text = "Pair again if the SIM was changed"
+                        simNumberValue.text = formatSimDisplay(sim.phoneNumber, sim.carrier)
                     }
                     return@Thread
                 }
@@ -273,46 +339,89 @@ class MonitorActivity : Activity() {
                 ApiClient.diagnostics(store, diagnostics)
 
                 val battery = if (diagnostics.isNull("batteryLevel")) "—" else String.format(Locale.US, "%.0f%%", diagnostics.optDouble("batteryLevel"))
+                val batteryHealth = diagnostics.optString("batteryHealth", "Unknown")
                 val charging = diagnostics.optBoolean("charging", false)
                 val network = diagnostics.optString("networkType", "—")
                 val location = diagnostics.optJSONObject("location")
+                val syncedAt = System.currentTimeMillis()
 
                 runOnUiThread {
                     showOnline(true, "Online")
-                    simNumberValue.text = sim.phoneNumber.ifBlank { "Unavailable on device" }
-                    batteryValue.text = if (charging && battery != "—") "$battery · Charging" else battery
-                    networkValue.text = if (sim.carrier.isNotBlank()) "$network · ${sim.carrier}" else network
-                    connectionValue.text = "Connected"
-                    if (location != null) {
-                        locationValue.text = "Current device location"
-                        locationSub.text = String.format(
-                            Locale.US,
-                            "Lat %.6f, Long %.6f · ±%.0fm",
-                            location.optDouble("latitude"),
-                            location.optDouble("longitude"),
-                            location.optDouble("accuracy")
-                        )
-                    } else if (!diagnostics.optBoolean("locationEnabled", true)) {
-                        locationValue.text = "Location services off"
-                        locationSub.text = "Enable location services for current diagnostics"
-                    } else {
-                        locationValue.text = "Waiting for current location"
-                        locationSub.text = "WPAY will retry automatically"
+                    simNumberValue.text = formatSimDisplay(sim.phoneNumber, sim.carrier)
+                    batteryValue.text = buildString {
+                        append(battery)
+                        if (batteryHealth.isNotBlank()) append(" · ").append(batteryHealth)
+                        if (charging) append(" · Charging")
+                    }
+                    networkValue.text = humanNetwork(network)
+                    networkSub.text = "SIM carrier: ${sim.carrier.ifBlank { "Unavailable" }}"
+                    connectionValue.text = "Server connected"
+                    connectionSub.text = "Last sync: ${formatShortTime(syncedAt)}"
+
+                    when {
+                        !diagnostics.optBoolean("locationPermissionGranted", DiagnosticsCollector.hasLocationPermission(this@MonitorActivity)) -> {
+                            locationValue.text = "Location permission required"
+                            locationSub.text = "Grant location access for current diagnostics"
+                            enableLocation.text = "Grant"
+                            enableLocation.visibility = View.VISIBLE
+                        }
+                        !diagnostics.optBoolean("locationEnabled", DiagnosticsCollector.isLocationEnabled(this@MonitorActivity)) -> {
+                            locationValue.text = "Location services off"
+                            locationSub.text = "Turn on Android Location, then return to WPAY"
+                            enableLocation.text = "Enable"
+                            enableLocation.visibility = View.VISIBLE
+                        }
+                        location != null -> {
+                            locationValue.text = "Current device location"
+                            locationSub.text = String.format(
+                                Locale.US,
+                                "Lat %.6f, Long %.6f · ±%.0fm",
+                                location.optDouble("latitude"),
+                                location.optDouble("longitude"),
+                                location.optDouble("accuracy")
+                            )
+                            enableLocation.visibility = View.GONE
+                        }
+                        else -> {
+                            locationValue.text = "Acquiring current location"
+                            locationSub.text = "GPS / network location is on · tap Retry if needed"
+                            enableLocation.text = "Retry"
+                            enableLocation.visibility = View.VISIBLE
+                        }
                     }
                 }
             } catch (error: Exception) {
                 runOnUiThread {
                     showOnline(false, "Offline")
-                    connectionValue.text = "Offline · retrying"
+                    connectionValue.text = "Server offline"
+                    connectionSub.text = "Last attempt: ${formatShortTime(System.currentTimeMillis())}"
                     store.recordUploadError(error.message ?: "Server connection unavailable")
                     renderReceiverHealth()
+                    renderLocationActionState()
                 }
             }
         }.start()
     }
 
+    private fun formatSimDisplay(phoneNumber: String, carrier: String): String {
+        val numbers = phoneNumber.split("/").map { it.trim() }.filter { it.isNotBlank() }
+        if (numbers.isEmpty()) return if (carrier.isBlank()) "SIM detected · number unavailable" else "SIM detected · $carrier"
+        if (numbers.size == 1) return numbers.first()
+        return numbers.mapIndexed { index, number -> "SIM ${index + 1}: $number" }.joinToString("\n")
+    }
+
+    private fun humanNetwork(value: String): String = when (value.uppercase(Locale.US)) {
+        "WIFI" -> "Wi-Fi"
+        "CELLULAR" -> "Mobile data"
+        "ETHERNET" -> "Ethernet"
+        "VPN" -> "VPN"
+        "OFFLINE" -> "Offline"
+        "OTHER" -> "Other"
+        else -> value.ifBlank { "—" }
+    }
+
     private fun showOnline(online: Boolean, label: String) {
-        onlineStatus.text = if (online) "●  $label" else "●  $label"
+        onlineStatus.text = "●  $label"
         onlineStatus.setTextColor(if (online) getColor(R.color.wpay_green) else getColor(R.color.wpay_red))
         onlineStatus.setBackgroundResource(if (online) R.drawable.bg_online else R.drawable.bg_secondary)
     }
@@ -442,6 +551,9 @@ class MonitorActivity : Activity() {
 
     private fun formatTime(value: Long): String =
         SimpleDateFormat("dd MMM yyyy, hh:mm:ss a", Locale.getDefault()).format(Date(value))
+
+    private fun formatShortTime(value: Long): String =
+        SimpleDateFormat("hh:mm:ss a", Locale.getDefault()).format(Date(value))
 
     private fun toast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
