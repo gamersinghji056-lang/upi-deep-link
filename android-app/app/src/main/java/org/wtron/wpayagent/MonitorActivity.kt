@@ -83,6 +83,7 @@ class MonitorActivity : Activity() {
         }
 
         setContentView(R.layout.activity_monitor)
+        BackgroundMonitorService.start(this)
         eventStore = SmsEventStore(this)
         onlineStatus = findViewById(R.id.onlineStatus)
         simNumberValue = findViewById(R.id.simNumberValue)

@@ -39,6 +39,7 @@ class MainActivity : Activity() {
         store = AgentStore(this)
         if (store.isPaired) {
             CreditRetryScheduler.ensurePeriodic(this)
+            BackgroundMonitorService.start(this)
             openMonitor()
             return
         }
@@ -96,6 +97,7 @@ class MainActivity : Activity() {
         super.onResume()
         if (store.isPaired) {
             CreditRetryScheduler.ensurePeriodic(this)
+            BackgroundMonitorService.start(this)
             openMonitor()
             return
         }
@@ -262,6 +264,7 @@ class MainActivity : Activity() {
                 store.savePairing(result.deviceId, result.deviceToken, sim.fingerprint)
                 CreditRetryScheduler.ensurePeriodic(this)
                 CreditRetryScheduler.enqueue(this)
+                BackgroundMonitorService.start(this)
                 runOnUiThread {
                     toast("Device connected successfully.")
                     openMonitor()
