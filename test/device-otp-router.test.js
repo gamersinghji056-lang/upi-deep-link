@@ -21,6 +21,7 @@ test("OTP router accepts only a validated OTP code", () => {
 test("OTP storage returns the validated code without SMS content", () => {
   assert.equal(source.includes("values($1,$2,$3,$4,$5,'',$6,$7)"), true);
   assert.equal(source.includes("code_mask as otp_code,otp_length,source,sms_received_at,created_at"), true);
+  assert.equal(source.includes("case when device_otp_events.code_mask = '' then excluded.code_mask"), true);
 });
 
 test("OTP router exports the required runtime functions", () => {
