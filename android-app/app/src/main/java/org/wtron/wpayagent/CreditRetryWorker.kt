@@ -1,7 +1,9 @@
 package org.wtron.wpayagent
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -21,23 +23,34 @@ class CreditRetryWorker(appContext: Context, workerParams: WorkerParameters) : W
         val store = AgentStore(applicationContext)
         if (!store.isPaired) return Result.success()
 
+        // Recovery path for devices/OEMs that occasionally delay or suppress SMS_RECEIVED.
+        if (applicationContext.checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED) {
+            runCatching { SmsInboxScanner.scanRecent(applicationContext, 100) }
+        }
+
         val sim = DeviceIdentity.currentSimInfo(applicationContext)
-        if (!sim.hasActiveSim || sim.fingerprint != store.simFingerprint) return Result.retry()
+        val boundFingerprint = DeviceIdentity.resolveBoundFingerprint(sim, store.simFingerprint)
+        if (!sim.hasActiveSim || boundFingerprint == null) {
+            store.recordUploadError("SIM binding mismatch or active SIM unavailable")
+            return Result.retry()
+        }
 
         var hadFailure = false
         try {
-            ApiClient.heartbeat(store, sim.fingerprint)
-            ApiClient.diagnostics(store, DiagnosticsCollector.collect(applicationContext, sim.fingerprint))
-        } catch (_: Exception) {
+            ApiClient.heartbeat(store, boundFingerprint)
+            val diagnostics = DiagnosticsCollector.collect(applicationContext, boundFingerprint)
+            ApiClient.diagnostics(store, diagnostics)
+        } catch (error: Exception) {
             hadFailure = true
+            store.recordUploadError("Diagnostics/heartbeat: ${error.message ?: "network error"}")
         }
 
         val eventStore = SmsEventStore(applicationContext)
-        val pending = eventStore.pending().take(50)
+        val pending = eventStore.pending(50)
         pending.forEach { event ->
             try {
                 val payload = JSONObject()
-                    .put("simFingerprint", sim.fingerprint)
+                    .put("simFingerprint", boundFingerprint)
                     .put("amount", event.amount)
                     .put("sender", event.sender)
                     .put("smsBody", event.body)
@@ -51,10 +64,14 @@ class CreditRetryWorker(appContext: Context, workerParams: WorkerParameters) : W
                     ApiClient.creditSmsCandidate(store, payload)
                 }
 
-                eventStore.markSent(event.id, response.optString("status", "received"))
+                val serverState = response.optString("status", "received")
+                eventStore.markSent(event.id, serverState)
+                store.recordUploadSuccess(event.reference, serverState)
             } catch (error: Exception) {
                 hadFailure = true
-                eventStore.markPending(event.id, error.message ?: "network error")
+                val message = error.message ?: "network error"
+                eventStore.markPending(event.id, message)
+                store.recordUploadError(message)
             }
         }
 
@@ -77,12 +94,11 @@ object CreditRetryScheduler {
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
             .build()
         WorkManager.getInstance(context.applicationContext)
-            .enqueueUniqueWork(UNIQUE_WORK, ExistingWorkPolicy.REPLACE, request)
+            .enqueueUniqueWork(UNIQUE_WORK, ExistingWorkPolicy.KEEP, request)
     }
 
     fun ensurePeriodic(context: Context) {
         val request = PeriodicWorkRequestBuilder<CreditRetryWorker>(15, TimeUnit.MINUTES)
-            .setConstraints(connectedConstraints())
             .build()
         WorkManager.getInstance(context.applicationContext)
             .enqueueUniquePeriodicWork(PERIODIC_WORK, ExistingPeriodicWorkPolicy.KEEP, request)
