@@ -12,7 +12,7 @@ import android.view.WindowInsetsController
 
 /**
  * Keeps every WPAY screen inside the real Android status/navigation/cutout safe area
- * and starts the paired-device foreground monitor whenever the user opens WPAY.
+ * and applies APK-wide UI policies after each Activity has created its content view.
  */
 class WpayApplication : Application(), Application.ActivityLifecycleCallbacks {
     override fun onCreate() {
@@ -22,13 +22,9 @@ class WpayApplication : Application(), Application.ActivityLifecycleCallbacks {
 
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
         applyDarkSystemBars(activity)
-        activity.window.decorView.post { installSafeArea(activity) }
-    }
-
-    override fun onActivityResumed(activity: Activity) {
-        if (AgentStore(activity).isPaired) {
-            BackgroundMonitorService.start(activity)
-            CreditRetryScheduler.ensurePeriodic(activity)
+        activity.window.decorView.post {
+            installSafeArea(activity)
+            applyUiPolicy(activity)
         }
     }
 
@@ -52,6 +48,22 @@ class WpayApplication : Application(), Application.ActivityLifecycleCallbacks {
             insets
         }
         root.requestApplyInsets()
+    }
+
+    /**
+     * Pairing is intentionally persistent on the device. The APK Settings screen must
+     * not expose an end-user disconnect action; removing the app is the supported way
+     * to clear this local installation.
+     */
+    private fun applyUiPolicy(activity: Activity) {
+        val disconnectId = resources.getIdentifier("disconnectDevice", "id", packageName)
+        if (disconnectId == 0) return
+        activity.findViewById<View>(disconnectId)?.apply {
+            visibility = View.GONE
+            isEnabled = false
+            isClickable = false
+            setOnClickListener(null)
+        }
     }
 
     private fun applyDarkSystemBars(activity: Activity) {
@@ -91,6 +103,9 @@ class WpayApplication : Application(), Application.ActivityLifecycleCallbacks {
     }
 
     override fun onActivityStarted(activity: Activity) = Unit
+    override fun onActivityResumed(activity: Activity) {
+        activity.window.decorView.post { applyUiPolicy(activity) }
+    }
     override fun onActivityPaused(activity: Activity) = Unit
     override fun onActivityStopped(activity: Activity) = Unit
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
