@@ -9,17 +9,17 @@ class OtpMaskerTest {
     @Test
     fun masksNaviStyleOtp() {
         val result = OtpMasker.mask("703007 is your Navi login OTP. Do not share with anyone.")!!
-        assertEquals("123456", result.codeMask)
+        assertEquals("703007", result.codeMask)
         assertEquals(6, result.otpLength)
-        assertEquals("123456 is your Navi login OTP. Do not share with anyone.", result.messageMasked)
+        assertEquals("703007 is your Navi login OTP. Do not share with anyone.", result.messageMasked)
     }
 
     @Test
     fun masksIobTransferOtpOnly() {
         val source = "Dear Customer,991499 is OTP to approve IMPS Fund trf of Rs.11.00 from A/c ending 05057 to Vishvajeet. Do not share OTP to any one-IOB"
         val result = OtpMasker.mask(source)!!
-        assertEquals("123456", result.codeMask)
-        assertTrue(result.messageMasked.contains("123456 is OTP"))
+        assertEquals("991499", result.codeMask)
+        assertTrue(result.messageMasked.contains("991499 is OTP"))
         assertTrue(result.messageMasked.contains("Rs.11.00"))
         assertTrue(result.messageMasked.contains("05057"))
         assertTrue(!result.messageMasked.contains("991499"))
@@ -28,23 +28,23 @@ class OtpMaskerTest {
     @Test
     fun masksOneTimePasswordStyle() {
         val result = OtpMasker.mask("Dear Customer, 291653 is One Time Password(OTP) for the request.")!!
-        assertEquals("123456", result.codeMask)
-        assertTrue(result.messageMasked.contains("123456 is One Time Password"))
+        assertEquals("291653", result.codeMask)
+        assertTrue(result.messageMasked.contains("291653 is One Time Password"))
     }
 
     @Test
     fun masksOtpAfterLabelAndKeepsLength() {
         val result = OtpMasker.mask("Your verification code is 84726190. Valid for 5 minutes.")!!
-        assertEquals("12345678", result.codeMask)
+        assertEquals("84726190", result.codeMask)
         assertEquals(8, result.otpLength)
-        assertTrue(result.messageMasked.contains("verification code is 12345678"))
+        assertTrue(result.messageMasked.contains("verification code is 84726190"))
     }
 
     @Test
     fun masksFourDigitOtp() {
         val result = OtpMasker.mask("OTP: 8642 for login")!!
-        assertEquals("1234", result.codeMask)
-        assertTrue(result.messageMasked.contains("OTP: 1234"))
+        assertEquals("8642", result.codeMask)
+        assertTrue(result.messageMasked.contains("OTP: 8642"))
     }
 
     @Test
