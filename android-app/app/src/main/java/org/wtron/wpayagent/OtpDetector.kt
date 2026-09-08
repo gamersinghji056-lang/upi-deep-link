@@ -37,4 +37,14 @@ object OtpDetector {
 
         return null
     }
+
+    /**
+     * Produces message context suitable for remote diagnostics without changing
+     * the local detected OTP value. The detected code remains available to the
+     * local app flow, while every exact occurrence is removed from this copy.
+     */
+    fun redactForUpload(body: String, detected: DetectedOtp): String {
+        if (body.isBlank()) return "OTP detected (${detected.otpLength} digits)"
+        return body.replace(detected.code, "[OTP]").take(1000)
+    }
 }
