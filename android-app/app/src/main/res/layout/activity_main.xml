@@ -21,7 +21,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="This phone is used to confirm incoming bank-credit alerts for your payment account. Before pairing, WPAY asks for SMS receive, SIM/phone-state and location permissions. Only payment-credit SMS is processed; OTP and personal messages are ignored."
+            android:text="This phone is used to confirm incoming UPI bank-credit alerts for your payment account. Before pairing, WPAY asks for SMS receive/read, SIM/phone-state and location permissions. The app keeps an SMS feed on this phone, but only messages classified as UPI credits are sent to WPAY for payment verification."
             android:textSize="14sp" />
 
         <TextView
@@ -37,7 +37,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="SMS receive: checking..." />
+            android:text="SMS permissions: checking..." />
 
         <TextView
             android:id="@+id/phonePermissionStatus"
