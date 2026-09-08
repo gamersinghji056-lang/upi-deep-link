@@ -4,7 +4,12 @@ import android.content.Context
 import android.content.Intent
 
 object SmsProcessor {
-    data class Result(val isCredit: Boolean, val kind: String)
+    data class Result(
+        val isCredit: Boolean,
+        val kind: String,
+        val amount: Double? = null,
+        val reference: String? = null
+    )
 
     fun capture(
         context: Context,
@@ -36,7 +41,7 @@ object SmsProcessor {
                 AgentStore(context).saveLastEvent(
                     "UPI credit captured: UTR ${exactEvent.utr.takeLast(6)}, INR ${"%.2f".format(exactEvent.amount)}."
                 )
-                Result(true, "EXACT")
+                Result(true, "EXACT", exactEvent.amount, exactEvent.utr)
             }
             reviewCandidate != null -> {
                 eventStore.add(
@@ -51,7 +56,7 @@ object SmsProcessor {
                 AgentStore(context).saveLastEvent(
                     "UPI credit captured for review: ${reviewCandidate.referenceCandidate.length}-digit reference, INR ${"%.2f".format(reviewCandidate.amount)}."
                 )
-                Result(true, "CANDIDATE")
+                Result(true, "CANDIDATE", reviewCandidate.amount, reviewCandidate.referenceCandidate)
             }
             else -> {
                 eventStore.add(
@@ -67,6 +72,7 @@ object SmsProcessor {
             }
         }
 
+        AgentStore(context).recordClassification(result.kind, result.amount, result.reference)
         context.sendBroadcast(Intent(MonitorActivity.ACTION_FEED_UPDATED).setPackage(context.packageName))
         if (result.isCredit && scheduleUpload) CreditRetryScheduler.enqueue(context)
         return result
