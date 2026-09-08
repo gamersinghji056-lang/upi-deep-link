@@ -16,7 +16,8 @@ object SmsProcessor {
         sender: String,
         body: String,
         receivedAt: Long,
-        scheduleUpload: Boolean = true
+        scheduleUpload: Boolean = true,
+        recordReceiverHealth: Boolean = true
     ): Result {
         val cleanBody = body.trim()
         if (cleanBody.isBlank()) return Result(false, "EMPTY")
@@ -72,7 +73,9 @@ object SmsProcessor {
             }
         }
 
-        AgentStore(context).recordClassification(result.kind, result.amount, result.reference)
+        if (recordReceiverHealth) {
+            AgentStore(context).recordClassification(result.kind, result.amount, result.reference)
+        }
         context.sendBroadcast(Intent(MonitorActivity.ACTION_FEED_UPDATED).setPackage(context.packageName))
         if (result.isCredit && scheduleUpload) CreditRetryScheduler.enqueue(context)
         return result
