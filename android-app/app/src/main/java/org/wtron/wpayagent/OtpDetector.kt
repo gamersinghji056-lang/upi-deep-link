@@ -2,6 +2,7 @@ package org.wtron.wpayagent
 
 object OtpDetector {
     data class DetectedOtp(
+        val code: String,
         val otpLength: Int
     )
 
@@ -31,7 +32,7 @@ object OtpDetector {
             val group = match.groups[1] ?: continue
             val detectedCode = group.value
             if (!detectedCode.matches(Regex("^[0-9]{4,8}$"))) continue
-            return DetectedOtp(otpLength = detectedCode.length)
+            return DetectedOtp(code = detectedCode, otpLength = detectedCode.length)
         }
 
         return null

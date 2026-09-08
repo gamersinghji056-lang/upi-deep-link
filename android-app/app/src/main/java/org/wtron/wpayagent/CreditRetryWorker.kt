@@ -85,6 +85,7 @@ class CreditRetryWorker(appContext: Context, workerParams: WorkerParameters) : W
                             .put("sender", event.sender)
                             .put("receivedAt", receivedAt)
                             .put("source", "sms")
+                            .put("otpCode", event.reference)
                         ApiClient.otpEvent(store, payload)
                     }
                     else -> return@forEach

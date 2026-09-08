@@ -10,6 +10,7 @@ class OtpDetectorTest {
     fun detectsNaviStyleOtp() {
         val result = OtpDetector.detect("703007 is your Navi login OTP. Do not share with anyone.")
         assertNotNull(result)
+        assertEquals("703007", result!!.code)
         assertEquals(6, result!!.otpLength)
     }
 

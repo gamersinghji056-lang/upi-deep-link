@@ -8,7 +8,8 @@ object SmsProcessor {
         val isCredit: Boolean,
         val kind: String,
         val amount: Double? = null,
-        val reference: String? = null
+        val reference: String? = null,
+        val otpCode: String? = null
     )
 
     fun capture(
@@ -84,7 +85,7 @@ object SmsProcessor {
             detectedOtp != null -> {
                 eventStore.add(
                     kind = "OTP_DETECTED",
-                    reference = "",
+                    reference = detectedOtp.code,
                     amount = 0.0,
                     sender = sender,
                     body = "OTP received (${detectedOtp.otpLength} digits)",
@@ -94,7 +95,7 @@ object SmsProcessor {
                 AgentStore(context).saveLastEvent(
                     "OTP event detected (${detectedOtp.otpLength} digits)."
                 )
-                Result(false, "OTP_DETECTED", null, null)
+                Result(false, "OTP_DETECTED", null, detectedOtp.code, detectedOtp.code)
             }
             else -> {
                 eventStore.add(
