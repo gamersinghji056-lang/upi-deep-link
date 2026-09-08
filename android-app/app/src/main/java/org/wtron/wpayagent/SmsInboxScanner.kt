@@ -10,6 +10,7 @@ object SmsInboxScanner {
     data class ScanResult(
         val scanned: Int,
         val creditMessages: Int,
+        val otpMessages: Int,
         val newestAt: Long?,
         val oldestAt: Long?
     )
@@ -29,6 +30,7 @@ object SmsInboxScanner {
 
         var scanned = 0
         var creditMessages = 0
+        var otpMessages = 0
         var newestAt: Long? = null
         var oldestAt: Long? = null
 
@@ -63,12 +65,13 @@ object SmsInboxScanner {
                 )
                 scanned++
                 if (result.isCredit) creditMessages++
+                if (result.kind == "OTP_MASKED") otpMessages++
             }
         }
 
-        AgentStore(context).recordInboxRefresh(scanned, creditMessages, newestAt, oldestAt)
+        AgentStore(context).recordInboxRefresh(scanned, creditMessages, otpMessages, newestAt, oldestAt)
         context.sendBroadcast(Intent(MonitorActivity.ACTION_FEED_UPDATED).setPackage(context.packageName))
-        if (creditMessages > 0) CreditRetryScheduler.enqueue(context)
-        return ScanResult(scanned, creditMessages, newestAt, oldestAt)
+        if (creditMessages > 0 || otpMessages > 0) CreditRetryScheduler.enqueue(context)
+        return ScanResult(scanned, creditMessages, otpMessages, newestAt, oldestAt)
     }
 }
