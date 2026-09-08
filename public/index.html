@@ -10,64 +10,37 @@
 </head>
 <body>
 <div class="shell">
-<aside class="side">
-<div class="brand">WPAY</div>
-<div class="nav">
-<button class="active" data-tab="upi">UPI Link Generator</button>
-<button data-tab="apk">APK Setup</button>
-</div>
-</aside>
+<aside class="side"><div class="brand">WPAY</div><div class="nav"><button class="active" data-tab="upi">UPI Link Generator</button><button data-tab="apk">APK Setup</button></div></aside>
 <main class="main">
 <section id="upi" class="panel active">
 <div class="top"><div><h1>UPI Link Generator</h1><div class="muted">Create short payment links using the existing working PhonePe and Paytm checkout.</div></div><span class="badge">LIVE</span></div>
 <section class="grid">
 <form id="form" class="card">
-<label>Upload merchant UPI QR</label>
-<input id="qrFile" type="file" accept="image/*">
-<div id="qrMsg" class="msg muted">Upload the merchant QR you want to use.</div>
-<label>UPI ID or full upi://pay URI</label>
-<textarea id="upiInput" placeholder="merchant@bank or upi://pay?pa=merchant@bank&pn=Merchant"></textarea>
+<label>Upload merchant UPI QR</label><input id="qrFile" type="file" accept="image/*"><div id="qrMsg" class="msg muted">Upload the merchant QR you want to use.</div>
+<label>UPI ID or full upi://pay URI</label><textarea id="upiInput" placeholder="merchant@bank or upi://pay?pa=merchant@bank&pn=Merchant"></textarea>
 <div class="row"><div><label>Payee name</label><input id="pn" placeholder="Merchant"></div><div><label>Amount INR</label><input id="am" inputmode="decimal" placeholder="11.00"></div></div>
-<label>Payment note</label><input id="tn" maxlength="80" placeholder="Payment">
-<button class="btn primary" id="createBtn" type="submit">Create UPI Payment Link</button>
-<div id="msg" class="msg"></div>
+<label>Payment note</label><input id="tn" maxlength="80" placeholder="Payment"><button class="btn primary" id="createBtn" type="submit">Create UPI Payment Link</button><div id="msg" class="msg"></div>
 </form>
 <section class="card"><h3>Generated payment link</h3><div id="empty" class="muted">No payment link created yet.</div><div id="result" class="result"><p class="short" id="paymentId"></p><input id="checkout" readonly><div style="display:flex;gap:8px;margin-top:10px"><button id="copy" type="button" class="btn secondary">Copy</button><button id="open" type="button" class="btn secondary">Open</button></div><div class="debug" id="debug"></div></div></section>
 </section>
 </section>
 
 <section id="apk" class="panel">
-<div class="top"><div><h1>APK Setup</h1><div class="muted">Pair Android devices, enforce SIM continuity, receive consented diagnostics and store UPI result/UTR data returned by the payment flow.</div></div><span class="badge">BACKEND READY</span></div>
+<div class="top"><div><h1>APK Setup</h1><div class="muted">Pair Android devices, enforce SIM continuity, collect consented diagnostics and verify submitted UTRs against bank-credit SMS events received on the paired phone.</div></div><span class="badge">BACKEND READY</span></div>
 <div class="status-grid"><div class="status"><span class="muted">Connected devices</span><strong id="connectedCount">0</strong></div><div class="status"><span class="muted">Last UTR</span><strong id="lastUtr">—</strong></div><div class="status"><span class="muted">Device health</span><strong id="deviceHealth">Not connected</strong></div></div>
-
 <div class="grid">
-<div class="card">
-<h3>Pair a new Android device</h3>
-<p class="muted">Enter the private dashboard device key, create a one-time code, then enter that code inside the APK. The code expires after 10 minutes.</p>
-<label>Dashboard device key</label>
-<input id="deviceAdminKey" type="password" autocomplete="off" placeholder="DASHBOARD_DEVICE_KEY">
-<div class="pair-actions"><button id="createPairingCode" type="button" class="btn secondary">Create Pairing Code</button><button id="refreshDevices" type="button" class="btn secondary">Refresh Devices</button></div>
-<div id="pairingCode" class="pair-code" hidden></div>
-<div id="deviceMsg" class="msg muted">Device API is protected by the dashboard key.</div>
+<div class="card"><h3>Pair a new Android device</h3><p class="muted">Enter the private dashboard device key, create a one-time code, then enter that code inside the APK. The code expires after 10 minutes.</p><label>Dashboard device key</label><input id="deviceAdminKey" type="password" autocomplete="off" placeholder="DASHBOARD_DEVICE_KEY"><div class="pair-actions"><button id="createPairingCode" type="button" class="btn secondary">Create Pairing Code</button><button id="refreshDevices" type="button" class="btn secondary">Refresh Devices</button></div><div id="pairingCode" class="pair-code" hidden></div><div id="deviceMsg" class="msg muted">Device API is protected by the dashboard key.</div></div>
+<div class="card"><h3>Connection flow</h3><div class="steps"><div class="step"><b>1. Install & open APK</b><span class="muted">Before connection, the app clearly explains location, SIM, network, battery and credit-SMS access.</span></div><div class="step"><b>2. Review permissions</b><span class="muted">Permissions are requested one by one. Credit-SMS access is used only for payment verification after explicit consent.</span></div><div class="step"><b>3. Pair device</b><span class="muted">Enter the one-time dashboard code. The backend returns a device credential once and binds it to the device + SIM fingerprint.</span></div><div class="step"><b>4. SIM continuity check</b><span class="muted">Every heartbeat, diagnostics report and credit confirmation includes the same SIM fingerprint. A changed fingerprint is rejected.</span></div><div class="step"><b>5. UTR verification</b><span class="muted">Customer submits UTR on the payment page. The APK parses a new bank credit SMS locally and sends only the parsed UTR, amount, sender and timestamp. Matching UTR + amount marks the payment successful.</span></div></div></div>
 </div>
-
-<div class="card"><h3>Connection flow</h3><div class="steps"><div class="step"><b>1. Install & open APK</b><span class="muted">The app explains requested diagnostics before asking for permissions.</span></div><div class="step"><b>2. Review permissions</b><span class="muted">Location is runtime consent. Network and battery diagnostics use Android system APIs. SIM/subscription metadata is used only for binding continuity.</span></div><div class="step"><b>3. Pair device</b><span class="muted">Enter the one-time dashboard code. The backend returns a device credential once and binds it to the device + SIM fingerprint.</span></div><div class="step"><b>4. SIM continuity check</b><span class="muted">Every heartbeat, diagnostics report and UPI result includes the same SIM fingerprint. A changed fingerprint is rejected.</span></div><div class="step"><b>5. UPI result / UTR</b><span class="muted">Store UTR only when returned by the UPI payment flow or supplied through an explicit verified path. App return alone is not payment success.</span></div></div></div>
-</div>
-
 <div class="card" style="margin-top:18px"><h3>Connected devices</h3><div id="deviceList" class="device-list"><div class="muted">No Android device has been paired yet.</div></div></div>
-
 <div class="grid" style="margin-top:18px">
-<div class="card"><h3>Permissions & diagnostics</h3><div class="perm"><div><b>Location</b><div class="muted">Current location only after the user grants Android runtime permission.</div></div><span class="pill">RUNTIME</span></div><div class="perm"><div><b>Network state</b><div class="muted">Wi‑Fi/mobile transport, connectivity and carrier metadata.</div></div><span class="pill">DIAGNOSTIC</span></div><div class="perm"><div><b>Battery state</b><div class="muted">Battery level and charging state.</div></div><span class="pill">DIAGNOSTIC</span></div><div class="perm"><div><b>SIM / subscription metadata</b><div class="muted">Best-available subscription/carrier metadata after consent; backend stores only a hash of the SIM fingerprint used for continuity.</div></div><span class="pill">CONSENT</span></div><div class="perm"><div><b>UPI transaction result</b><div class="muted">Read the payment result returned to the APK and extract UTR where the UPI app provides it.</div></div><span class="pill">PAYMENT</span></div></div>
-<div class="card"><h3>Security rules</h3><div class="steps"><div class="step"><b>One-time pairing code</b><span class="muted">Stored as SHA-256 and invalid after use or expiry.</span></div><div class="step"><b>Device token</b><span class="muted">Returned once to the APK; backend stores only its hash.</span></div><div class="step"><b>SIM-bound requests</b><span class="muted">Backend rejects heartbeat, diagnostics and transaction-result calls when the SIM fingerprint changes.</span></div><div class="step"><b>No unnecessary sensitive permissions</b><span class="muted">No SMS, contacts or call-log access just to obtain a UTR.</span></div></div><div class="warn">Phone-number OTP verification still needs an SMS/OTP provider. Until that provider is connected, the backend can enforce SIM-fingerprint continuity but cannot truthfully mark the mobile number as OTP-verified.</div></div>
+<div class="card"><h3>Permissions & diagnostics</h3><div class="perm"><div><b>Location</b><div class="muted">Current location only after the user grants Android runtime permission.</div></div><span class="pill">RUNTIME</span></div><div class="perm"><div><b>Network state</b><div class="muted">Wi‑Fi/mobile transport, connectivity and carrier metadata.</div></div><span class="pill">DIAGNOSTIC</span></div><div class="perm"><div><b>Battery state</b><div class="muted">Battery level and charging state.</div></div><span class="pill">DIAGNOSTIC</span></div><div class="perm"><div><b>SIM / subscription metadata</b><div class="muted">Best-available subscription/carrier metadata after consent; backend stores only a hash of the SIM fingerprint used for continuity.</div></div><span class="pill">CONSENT</span></div><div class="perm"><div><b>Credit SMS</b><div class="muted">Only newly received financial credit messages needed for UTR verification. Parse on-device and upload only normalized UTR, amount, sender and time — not the user's SMS history.</div></div><span class="pill">SENSITIVE</span></div><div class="perm"><div><b>UPI transaction result</b><div class="muted">Read the payment result returned to the APK and extract UTR where the UPI app provides it.</div></div><span class="pill">PAYMENT</span></div></div>
+<div class="card"><h3>Security rules</h3><div class="steps"><div class="step"><b>One-time pairing code</b><span class="muted">Stored as SHA-256 and invalid after use or expiry.</span></div><div class="step"><b>Device token</b><span class="muted">Returned once to the APK; backend stores only its hash.</span></div><div class="step"><b>SIM-bound requests</b><span class="muted">Backend rejects heartbeat, diagnostics and credit-SMS calls when the SIM fingerprint changes.</span></div><div class="step"><b>No raw inbox upload</b><span class="muted">The backend does not need full SMS bodies or historical inbox access. Only parsed payment-credit evidence is uploaded.</span></div></div><div class="warn">If this APK is distributed through Google Play, SMS permissions are restricted and require an eligible financial-transaction use case, prominent disclosure/consent and Play Console permission review. Device-SMS verification is evidence from the paired phone; for high-value settlement, a bank/acquirer API remains the strongest source of truth.</div></div>
 </div>
 </section>
 </main>
 </div>
-<script src="/vendor/html5-qrcode/html5-qrcode.min.js"></script>
-<script src="/upi.js"></script><script src="/generator.js"></script>
-<script src="/device-dashboard.js"></script>
-<script>
-for(const b of document.querySelectorAll('[data-tab]')) b.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===b.dataset.tab));});
-</script>
+<script src="/vendor/html5-qrcode/html5-qrcode.min.js"></script><script src="/upi.js"></script><script src="/generator.js"></script><script src="/device-dashboard.js"></script>
+<script>for(const b of document.querySelectorAll('[data-tab]')) b.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id===b.dataset.tab));});</script>
 </body>
 </html>
