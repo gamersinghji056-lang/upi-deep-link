@@ -9,25 +9,39 @@ class SmsReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
 
-        val store = AgentStore(context)
-        if (!store.isPaired) return
+        val pendingResult = goAsync()
+        Thread {
+            try {
+                val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
+                if (messages.isEmpty()) return@Thread
 
-        val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
-        if (messages.isEmpty()) return
+                val sender = messages.firstOrNull()?.originatingAddress.orEmpty()
+                val body = messages.joinToString(separator = "") { it.displayMessageBody.orEmpty() }.trim()
+                val receivedAt = messages.maxOfOrNull { it.timestampMillis } ?: System.currentTimeMillis()
+                if (body.isBlank()) return@Thread
 
-        val sender = messages.firstOrNull()?.originatingAddress.orEmpty()
-        val body = messages.joinToString(separator = "") { it.displayMessageBody.orEmpty() }.trim()
-        val receivedAt = messages.maxOfOrNull { it.timestampMillis } ?: System.currentTimeMillis()
-        if (body.isBlank()) return
+                val store = AgentStore(context)
+                store.recordSmsBroadcast(sender, body, receivedAt)
 
-        SmsProcessor.capture(
-            context = context,
-            sender = sender,
-            body = body,
-            receivedAt = receivedAt,
-            scheduleUpload = true
-        )
+                if (!store.isPaired) {
+                    store.recordClassification("RECEIVED_NOT_PAIRED", null, null)
+                    return@Thread
+                }
 
-        CreditRetryScheduler.ensurePeriodic(context)
+                SmsProcessor.capture(
+                    context = context,
+                    sender = sender,
+                    body = body,
+                    receivedAt = receivedAt,
+                    scheduleUpload = true
+                )
+
+                CreditRetryScheduler.ensurePeriodic(context)
+            } catch (error: Exception) {
+                AgentStore(context).recordUploadError("SMS receiver: ${error.message ?: error.javaClass.simpleName}")
+            } finally {
+                pendingResult.finish()
+            }
+        }.start()
     }
 }
