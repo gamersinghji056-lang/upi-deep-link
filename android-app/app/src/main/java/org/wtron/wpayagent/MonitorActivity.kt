@@ -113,13 +113,13 @@ class MonitorActivity : Activity() {
                     showOnline(true, "Online")
                     deviceStatus.text = buildString {
                         append("Carrier: ").append(sim.carrier.ifBlank { "Unknown" })
-                        if (sim.number.isNotBlank()) append("\nSIM number: ").append(sim.number)
+                        if (sim.phoneNumber.isNotBlank()) append("\nSIM number: ").append(sim.phoneNumber)
                         append("\nBattery: ").append(battery)
                         append(" · Network: ").append(network)
                         append("\nLocation: ").append(locationText)
                     }
                 }
-            } catch (error: Exception) {
+            } catch (_: Exception) {
                 runOnUiThread {
                     showOnline(false, "Offline")
                     deviceStatus.text = "Server connection unavailable. Pending credit messages will retry automatically."
@@ -149,31 +149,28 @@ class MonitorActivity : Activity() {
                 layoutParams = params
             }
 
-            val top = TextView(this).apply {
+            card.addView(TextView(this).apply {
                 text = "${event.sender.ifBlank { "Bank SMS" }}  ·  ${formatTime(event.receivedAt)}"
                 textSize = 13f
                 setTypeface(typeface, Typeface.BOLD)
                 setTextColor(Color.rgb(70, 70, 70))
-            }
-            card.addView(top)
+            })
 
-            val details = TextView(this).apply {
+            card.addView(TextView(this).apply {
                 text = "₹${String.format(Locale.US, "%.2f", event.amount)}  ·  Ref ${event.reference}"
                 textSize = 17f
                 setTypeface(typeface, Typeface.BOLD)
                 setTextColor(Color.BLACK)
                 setPadding(0, 8, 0, 8)
-            }
-            card.addView(details)
+            })
 
-            val body = TextView(this).apply {
+            card.addView(TextView(this).apply {
                 text = event.body
                 textSize = 14f
                 setTextColor(Color.rgb(65, 65, 65))
-            }
-            card.addView(body)
+            })
 
-            val status = TextView(this).apply {
+            card.addView(TextView(this).apply {
                 val sent = event.status == "SENT"
                 text = if (sent) {
                     if (event.serverState.isNotBlank()) "Sent to system · ${event.serverState}" else "Sent to system"
@@ -184,13 +181,11 @@ class MonitorActivity : Activity() {
                 setTypeface(typeface, Typeface.BOLD)
                 setTextColor(if (sent) Color.rgb(22, 163, 74) else Color.rgb(217, 119, 6))
                 setPadding(0, 10, 0, 0)
-            }
-            card.addView(status)
+            })
             messageList.addView(card)
         }
     }
 
-    private fun formatTime(value: Long): String {
-        return SimpleDateFormat("dd MMM yyyy, hh:mm:ss a", Locale.getDefault()).format(Date(value))
-    }
+    private fun formatTime(value: Long): String =
+        SimpleDateFormat("dd MMM yyyy, hh:mm:ss a", Locale.getDefault()).format(Date(value))
 }
