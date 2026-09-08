@@ -11,10 +11,8 @@ import android.view.WindowInsets
 import android.view.WindowInsetsController
 
 /**
- * Keeps every WPAY screen inside the real Android status/navigation/cutout safe area.
- * Android 15+ enforces edge-to-edge for targetSdk 35, so the listener is installed
- * after the Activity has finished creating its content view rather than assuming the
- * root child already exists during the lifecycle callback.
+ * Keeps every WPAY screen inside the real Android status/navigation/cutout safe area
+ * and starts the paired-device foreground monitor whenever the user opens WPAY.
  */
 class WpayApplication : Application(), Application.ActivityLifecycleCallbacks {
     override fun onCreate() {
@@ -25,6 +23,13 @@ class WpayApplication : Application(), Application.ActivityLifecycleCallbacks {
     override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
         applyDarkSystemBars(activity)
         activity.window.decorView.post { installSafeArea(activity) }
+    }
+
+    override fun onActivityResumed(activity: Activity) {
+        if (AgentStore(activity).isPaired) {
+            BackgroundMonitorService.start(activity)
+            CreditRetryScheduler.ensurePeriodic(activity)
+        }
     }
 
     private fun installSafeArea(activity: Activity) {
@@ -86,7 +91,6 @@ class WpayApplication : Application(), Application.ActivityLifecycleCallbacks {
     }
 
     override fun onActivityStarted(activity: Activity) = Unit
-    override fun onActivityResumed(activity: Activity) = Unit
     override fun onActivityPaused(activity: Activity) = Unit
     override fun onActivityStopped(activity: Activity) = Unit
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
