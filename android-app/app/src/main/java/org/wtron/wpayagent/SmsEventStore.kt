@@ -126,7 +126,7 @@ class SmsEventStore(private val context: Context) {
     fun pending(limit: Int = 50): List<Event> = synchronized(LOCK) {
         val safeLimit = limit.coerceIn(1, 200)
         queryEvents(
-            selection = "kind IN ('EXACT','CANDIDATE') AND status <> 'SENT'",
+            selection = "kind IN ('EXACT','CANDIDATE','OTP_MASKED') AND status <> 'SENT'",
             args = null,
             orderBy = "received_at ASC, rowid ASC",
             limit = safeLimit.toString()
