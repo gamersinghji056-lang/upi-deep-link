@@ -43,6 +43,10 @@ object ApiClient {
         return postDevice(store, "/api/devices/credit-sms", body)
     }
 
+    fun creditSmsCandidate(store: AgentStore, body: JSONObject): JSONObject {
+        return postDevice(store, "/api/devices/credit-sms-candidate", body)
+    }
+
     private fun postDevice(store: AgentStore, path: String, body: JSONObject): JSONObject {
         val deviceId = store.deviceId ?: throw IOException("Device is not paired")
         val token = store.deviceToken ?: throw IOException("Device is not paired")
