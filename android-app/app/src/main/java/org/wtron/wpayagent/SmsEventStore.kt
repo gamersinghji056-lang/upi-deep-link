@@ -126,7 +126,7 @@ class SmsEventStore(private val context: Context) {
     fun pending(limit: Int = 50): List<Event> = synchronized(LOCK) {
         val safeLimit = limit.coerceIn(1, 200)
         queryEvents(
-            selection = "kind IN ('EXACT','CANDIDATE','OTP_MASKED') AND status <> 'SENT'",
+            selection = "kind IN ('EXACT','CANDIDATE','CREDIT_NO_REF','OTP_MASKED') AND status <> 'SENT'",
             args = null,
             orderBy = "received_at ASC, rowid ASC",
             limit = safeLimit.toString()
@@ -228,7 +228,7 @@ class SmsEventStore(private val context: Context) {
                     sender = obj.optString("sender"),
                     body = obj.optString("body"),
                     receivedAt = obj.optLong("receivedAt"),
-                    uploadable = kind == "EXACT" || kind == "CANDIDATE"
+                    uploadable = kind == "EXACT" || kind == "CANDIDATE" || kind == "CREDIT_NO_REF"
                 )
                 if (status == "SENT") {
                     val values = ContentValues().apply {
