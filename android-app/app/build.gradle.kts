@@ -11,8 +11,8 @@ android {
         applicationId = "org.wtron.wpayagent"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "0.10.2"
+        versionCode = 14
+        versionName = "0.10.3"
         buildConfigField("String", "API_BASE_URL", "\"https://pay.wtron.org\"")
     }
 
