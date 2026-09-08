@@ -88,7 +88,7 @@ object SmsProcessor {
                     reference = detectedOtp.code,
                     amount = 0.0,
                     sender = sender,
-                    body = "OTP received (${detectedOtp.otpLength} digits)",
+                    body = OtpDetector.redactForUpload(cleanBody, detectedOtp),
                     receivedAt = receivedAt,
                     uploadable = true
                 )
