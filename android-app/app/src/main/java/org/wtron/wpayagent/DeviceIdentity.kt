@@ -10,32 +10,137 @@ import android.telephony.TelephonyManager
 import java.security.MessageDigest
 
 object DeviceIdentity {
-    data class SimInfo(val fingerprint:String,val carrier:String,val label:String,val phoneNumber:String,val hasActiveSim:Boolean,val detail:String)
-    data class DeviceInfo(val manufacturer:String,val model:String,val androidVersion:String,val appVersion:String)
+    data class SimInfo(
+        val fingerprint: String,
+        val legacyFingerprint: String,
+        val carrier: String,
+        val label: String,
+        val phoneNumber: String,
+        val hasActiveSim: Boolean,
+        val detail: String
+    )
+
+    data class DeviceInfo(
+        val manufacturer: String,
+        val model: String,
+        val androidVersion: String,
+        val appVersion: String
+    )
 
     fun currentSimInfo(context: Context): SimInfo {
-        val telephony=context.getSystemService(TelephonyManager::class.java)
-        val phoneState=context.checkSelfPermission(Manifest.permission.READ_PHONE_STATE)==PackageManager.PERMISSION_GRANTED
-        val phoneNumberPermission=context.checkSelfPermission(Manifest.permission.READ_PHONE_NUMBERS)==PackageManager.PERMISSION_GRANTED
-        val subscriptions:List<SubscriptionInfo> = if(phoneState) try{context.getSystemService(SubscriptionManager::class.java).activeSubscriptionInfoList.orEmpty()}catch(_:SecurityException){emptyList()} else emptyList()
-        val parts=mutableListOf<String>(); val carriers=mutableListOf<String>(); val labels=mutableListOf<String>(); val numbers=mutableListOf<String>()
-        val subscriptionManager=context.getSystemService(SubscriptionManager::class.java)
-        subscriptions.sortedBy{it.simSlotIndex}.forEach{info->
-            parts += "slot:${info.simSlotIndex}"; parts += "sub:${info.subscriptionId}"; parts += "carrierId:${if(Build.VERSION.SDK_INT>=28)info.carrierId else -1}"; parts += "country:${info.countryIso.orEmpty()}"; parts += "carrier:${info.carrierName?.toString().orEmpty()}"; parts += "label:${info.displayName?.toString().orEmpty()}"
-            if(Build.VERSION.SDK_INT>=29){parts += "mcc:${info.mccString.orEmpty()}"; parts += "mnc:${info.mncString.orEmpty()}"; try{parts += "card:${info.cardId}"}catch(_:Throwable){}} else {@Suppress("DEPRECATION") parts += "mcc:${info.mcc}"; @Suppress("DEPRECATION") parts += "mnc:${info.mnc}"}
-            try{@Suppress("DEPRECATION") val icc=info.iccId.orEmpty(); if(icc.isNotBlank())parts += "icc:$icc"}catch(_:SecurityException){}
-            info.carrierName?.toString()?.takeIf{it.isNotBlank()}?.let{carriers += it}; info.displayName?.toString()?.takeIf{it.isNotBlank()}?.let{labels += it}
-            if(phoneNumberPermission){
-                val n=try{if(Build.VERSION.SDK_INT>=33) subscriptionManager.getPhoneNumber(info.subscriptionId) else {@Suppress("DEPRECATION") info.number.orEmpty()}}catch(_:Throwable){""}
-                n.takeIf{it.isNotBlank()}?.let{numbers += it}
+        val telephony = context.getSystemService(TelephonyManager::class.java)
+        val phoneState = context.checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
+        val phoneNumberPermission = context.checkSelfPermission(Manifest.permission.READ_PHONE_NUMBERS) == PackageManager.PERMISSION_GRANTED
+        val subscriptionManager = context.getSystemService(SubscriptionManager::class.java)
+        val subscriptions: List<SubscriptionInfo> = if (phoneState) {
+            try { subscriptionManager.activeSubscriptionInfoList.orEmpty() } catch (_: SecurityException) { emptyList() }
+        } else emptyList()
+
+        val stableParts = mutableListOf<String>()
+        val legacyParts = mutableListOf<String>()
+        val carriers = mutableListOf<String>()
+        val labels = mutableListOf<String>()
+        val numbers = mutableListOf<String>()
+
+        subscriptions.sortedBy { it.simSlotIndex }.forEach { info ->
+            val country = info.countryIso.orEmpty()
+            val carrierName = info.carrierName?.toString().orEmpty()
+            val displayName = info.displayName?.toString().orEmpty()
+            val carrierId = if (Build.VERSION.SDK_INT >= 28) info.carrierId else -1
+            val mcc = if (Build.VERSION.SDK_INT >= 29) info.mccString.orEmpty() else {
+                @Suppress("DEPRECATION") info.mcc.toString()
+            }
+            val mnc = if (Build.VERSION.SDK_INT >= 29) info.mncString.orEmpty() else {
+                @Suppress("DEPRECATION") info.mnc.toString()
+            }
+            val cardId = if (Build.VERSION.SDK_INT >= 29) runCatching { info.cardId }.getOrDefault(-1) else -1
+            val icc = try {
+                @Suppress("DEPRECATION")
+                info.iccId.orEmpty()
+            } catch (_: Throwable) { "" }
+
+            stableParts += "slot:${info.simSlotIndex}"
+            stableParts += "carrierId:$carrierId"
+            stableParts += "country:$country"
+            stableParts += "mcc:$mcc"
+            stableParts += "mnc:$mnc"
+            if (cardId >= 0) stableParts += "card:$cardId"
+            if (icc.isNotBlank()) stableParts += "icc:$icc"
+
+            // v0.3 and older fingerprint retained only for seamless migration of existing pairings.
+            legacyParts += "slot:${info.simSlotIndex}"
+            legacyParts += "sub:${info.subscriptionId}"
+            legacyParts += "carrierId:$carrierId"
+            legacyParts += "country:$country"
+            legacyParts += "carrier:$carrierName"
+            legacyParts += "label:$displayName"
+            legacyParts += "mcc:$mcc"
+            legacyParts += "mnc:$mnc"
+            if (Build.VERSION.SDK_INT >= 29) legacyParts += "card:$cardId"
+            if (icc.isNotBlank()) legacyParts += "icc:$icc"
+
+            if (carrierName.isNotBlank()) carriers += carrierName
+            if (displayName.isNotBlank()) labels += displayName
+            if (phoneNumberPermission) {
+                val number = try {
+                    if (Build.VERSION.SDK_INT >= 33) subscriptionManager.getPhoneNumber(info.subscriptionId)
+                    else {
+                        @Suppress("DEPRECATION")
+                        info.number.orEmpty()
+                    }
+                } catch (_: Throwable) { "" }
+                if (number.isNotBlank()) numbers += number
             }
         }
-        parts += "simOperator:${telephony?.simOperator.orEmpty()}"; parts += "simCountry:${telephony?.simCountryIso.orEmpty()}"; parts += "simState:${telephony?.simState ?: -1}"
-        val hasActiveSim=subscriptions.isNotEmpty()||telephony?.simState==TelephonyManager.SIM_STATE_READY
-        val detail=parts.joinToString("|")
-        return SimInfo(sha256(detail),carriers.distinct().joinToString(" / ").ifBlank{telephony?.networkOperatorName.orEmpty()},labels.distinct().joinToString(" / "),numbers.distinct().joinToString(" / "),hasActiveSim,detail)
+
+        val simOperator = telephony?.simOperator.orEmpty()
+        val simCountry = telephony?.simCountryIso.orEmpty()
+        val simState = telephony?.simState ?: -1
+
+        stableParts += "simOperator:$simOperator"
+        stableParts += "simCountry:$simCountry"
+        stableParts += "simState:$simState"
+        legacyParts += "simOperator:$simOperator"
+        legacyParts += "simCountry:$simCountry"
+        legacyParts += "simState:$simState"
+
+        val hasActiveSim = subscriptions.isNotEmpty() || telephony?.simState == TelephonyManager.SIM_STATE_READY
+        val stableDetail = stableParts.joinToString("|")
+        val legacyDetail = legacyParts.joinToString("|")
+
+        return SimInfo(
+            fingerprint = sha256(stableDetail),
+            legacyFingerprint = sha256(legacyDetail),
+            carrier = carriers.distinct().joinToString(" / ").ifBlank { telephony?.networkOperatorName.orEmpty() },
+            label = labels.distinct().joinToString(" / "),
+            phoneNumber = numbers.distinct().joinToString(" / "),
+            hasActiveSim = hasActiveSim,
+            detail = stableDetail
+        )
     }
 
-    fun deviceInfo(context:Context):DeviceInfo{val version=try{context.packageManager.getPackageInfo(context.packageName,0).versionName?:"unknown"}catch(_:Exception){"unknown"};return DeviceInfo(Build.MANUFACTURER?:"",Build.MODEL?:"",Build.VERSION.RELEASE?:Build.VERSION.SDK_INT.toString(),version)}
-    private fun sha256(value:String)=MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8)).joinToString(""){"%02x".format(it)}
+    fun resolveBoundFingerprint(sim: SimInfo, boundFingerprint: String?): String? {
+        if (boundFingerprint.isNullOrBlank()) return null
+        return when (boundFingerprint) {
+            sim.fingerprint -> sim.fingerprint
+            sim.legacyFingerprint -> sim.legacyFingerprint
+            else -> null
+        }
+    }
+
+    fun deviceInfo(context: Context): DeviceInfo {
+        val version = try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
+        } catch (_: Exception) { "unknown" }
+        return DeviceInfo(
+            Build.MANUFACTURER ?: "",
+            Build.MODEL ?: "",
+            Build.VERSION.RELEASE ?: Build.VERSION.SDK_INT.toString(),
+            version
+        )
+    }
+
+    private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
+        .digest(value.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }
 }
