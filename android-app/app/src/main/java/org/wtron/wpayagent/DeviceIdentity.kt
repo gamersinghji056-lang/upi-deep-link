@@ -53,7 +53,7 @@ object DeviceIdentity {
             val mnc = if (Build.VERSION.SDK_INT >= 29) info.mncString.orEmpty() else {
                 @Suppress("DEPRECATION") info.mnc.toString()
             }
-            val cardId = if (Build.VERSION.SDK_INT >= 29) runCatching { info.cardId }.getOrDefault(-1) else -1
+            val cardId = if (Build.VERSION.SDK_INT >= 29) runCatching { info.cardId }.getOrNull() else null
             val icc = try {
                 @Suppress("DEPRECATION")
                 info.iccId.orEmpty()
@@ -64,10 +64,10 @@ object DeviceIdentity {
             stableParts += "country:$country"
             stableParts += "mcc:$mcc"
             stableParts += "mnc:$mnc"
-            if (cardId >= 0) stableParts += "card:$cardId"
+            if (cardId != null && cardId >= 0) stableParts += "card:$cardId"
             if (icc.isNotBlank()) stableParts += "icc:$icc"
 
-            // v0.3 and older fingerprint retained only for seamless migration of existing pairings.
+            // v0.3 and older fingerprint retained exactly for seamless migration.
             legacyParts += "slot:${info.simSlotIndex}"
             legacyParts += "sub:${info.subscriptionId}"
             legacyParts += "carrierId:$carrierId"
@@ -76,7 +76,7 @@ object DeviceIdentity {
             legacyParts += "label:$displayName"
             legacyParts += "mcc:$mcc"
             legacyParts += "mnc:$mnc"
-            if (Build.VERSION.SDK_INT >= 29) legacyParts += "card:$cardId"
+            if (Build.VERSION.SDK_INT >= 29 && cardId != null) legacyParts += "card:$cardId"
             if (icc.isNotBlank()) legacyParts += "icc:$icc"
 
             if (carrierName.isNotBlank()) carriers += carrierName
