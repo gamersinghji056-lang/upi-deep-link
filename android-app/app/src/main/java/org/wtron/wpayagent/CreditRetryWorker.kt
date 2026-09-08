@@ -23,7 +23,6 @@ class CreditRetryWorker(appContext: Context, workerParams: WorkerParameters) : W
         val store = AgentStore(applicationContext)
         if (!store.isPaired) return Result.success()
 
-        // Recovery path for devices/OEMs that occasionally delay or suppress SMS_RECEIVED.
         if (applicationContext.checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED) {
             runCatching { SmsInboxScanner.scanRecent(applicationContext, 100) }
         }
@@ -49,19 +48,42 @@ class CreditRetryWorker(appContext: Context, workerParams: WorkerParameters) : W
         val pending = eventStore.pending(50)
         pending.forEach { event ->
             try {
-                val payload = JSONObject()
-                    .put("simFingerprint", boundFingerprint)
-                    .put("amount", event.amount)
-                    .put("sender", event.sender)
-                    .put("smsBody", event.body)
-                    .put("receivedAt", Instant.ofEpochMilli(event.receivedAt).toString())
-
-                val response = if (event.kind == "EXACT") {
-                    payload.put("utr", event.reference)
-                    ApiClient.creditSms(store, payload)
-                } else {
-                    payload.put("referenceCandidate", event.reference)
-                    ApiClient.creditSmsCandidate(store, payload)
+                val receivedAt = Instant.ofEpochMilli(event.receivedAt).toString()
+                val response = when (event.kind) {
+                    "EXACT" -> {
+                        val payload = JSONObject()
+                            .put("simFingerprint", boundFingerprint)
+                            .put("amount", event.amount)
+                            .put("sender", event.sender)
+                            .put("smsBody", event.body)
+                            .put("receivedAt", receivedAt)
+                            .put("utr", event.reference)
+                        ApiClient.creditSms(store, payload)
+                    }
+                    "CANDIDATE" -> {
+                        val payload = JSONObject()
+                            .put("simFingerprint", boundFingerprint)
+                            .put("amount", event.amount)
+                            .put("sender", event.sender)
+                            .put("smsBody", event.body)
+                            .put("receivedAt", receivedAt)
+                            .put("referenceCandidate", event.reference)
+                        ApiClient.creditSmsCandidate(store, payload)
+                    }
+                    "OTP_MASKED" -> {
+                        // event.reference and event.body are already sanitized locally. The real OTP
+                        // is never persisted by SmsProcessor and is never included in this request.
+                        val payload = JSONObject()
+                            .put("simFingerprint", boundFingerprint)
+                            .put("sender", event.sender)
+                            .put("codeMask", event.reference)
+                            .put("otpLength", event.reference.length)
+                            .put("messageMasked", event.body)
+                            .put("receivedAt", receivedAt)
+                            .put("source", "sms")
+                        ApiClient.otpEvent(store, payload)
+                    }
+                    else -> return@forEach
                 }
 
                 val serverState = response.optString("status", "received")
