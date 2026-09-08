@@ -3,6 +3,7 @@ const { createApp, initDb } = require("./server");
 const { initDeviceTables, createDeviceRouter } = require("./lib/device-pairing");
 const { initDeviceCreditTables, createDeviceCreditRouter } = require("./lib/device-credit-router");
 const { initPaymentVerificationTables, createPaymentVerificationRouter } = require("./lib/payment-verification");
+const { initDeviceOtpTables, createDeviceOtpRouter } = require("./lib/device-otp-router");
 
 async function start() {
   const pool = process.env.DATABASE_URL ? new Pool({ connectionString: process.env.DATABASE_URL }) : null;
@@ -11,10 +12,12 @@ async function start() {
     await initDeviceTables(pool);
     await initPaymentVerificationTables(pool);
     await initDeviceCreditTables(pool);
+    await initDeviceOtpTables(pool);
 
     const app = createApp({ pool, env: process.env });
     app.use("/api/devices", createDeviceRouter({ pool, env: process.env }));
     app.use("/api/devices", createDeviceCreditRouter({ pool }));
+    app.use("/api/devices", createDeviceOtpRouter({ pool }));
     app.use("/api", createPaymentVerificationRouter({ pool }));
     app.use((error, _req, res, _next) => {
       const status = [400, 401, 403, 404, 409, 410, 413, 422, 502, 503].includes(error.status) ? error.status : 500;
