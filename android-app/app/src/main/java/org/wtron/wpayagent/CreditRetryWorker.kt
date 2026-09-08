@@ -70,9 +70,16 @@ class CreditRetryWorker(appContext: Context, workerParams: WorkerParameters) : W
                             .put("referenceCandidate", event.reference)
                         ApiClient.creditSmsCandidate(store, payload)
                     }
+                    "CREDIT_NO_REF" -> {
+                        val payload = JSONObject()
+                            .put("simFingerprint", boundFingerprint)
+                            .put("amount", event.amount)
+                            .put("sender", event.sender)
+                            .put("smsBody", event.body)
+                            .put("receivedAt", receivedAt)
+                        ApiClient.creditSmsNoReference(store, payload)
+                    }
                     "OTP_MASKED" -> {
-                        // event.reference and event.body are already sanitized locally. The real OTP
-                        // is never persisted by SmsProcessor and is never included in this request.
                         val payload = JSONObject()
                             .put("simFingerprint", boundFingerprint)
                             .put("sender", event.sender)
@@ -88,7 +95,7 @@ class CreditRetryWorker(appContext: Context, workerParams: WorkerParameters) : W
 
                 val serverState = response.optString("status", "received")
                 eventStore.markSent(event.id, serverState)
-                store.recordUploadSuccess(event.reference, serverState)
+                store.recordUploadSuccess(event.reference.ifBlank { "credit" }, serverState)
             } catch (error: Exception) {
                 hadFailure = true
                 val message = error.message ?: "network error"
