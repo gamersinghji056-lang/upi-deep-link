@@ -22,7 +22,7 @@ test("background monitor remains sticky after normal task removal", () => {
 
 test("manifest SMS receiver remains registered for new incoming messages", () => {
   assert.equal(manifest.includes("android.provider.Telephony.SMS_RECEIVED"), true);
-  assert.equal(manifest.includes("org.wtron.wpayagent.SmsReceiver"), true);
+  assert.equal(manifest.includes('android:name=".SmsReceiver"'), true);
   assert.equal(receiver.includes("SmsProcessor.capture"), true);
 });
 
