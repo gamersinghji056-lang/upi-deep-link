@@ -23,7 +23,7 @@ class SmsEventStore(context: Context) {
     private val prefs = context.getSharedPreferences("wpay_agent", Context.MODE_PRIVATE)
 
     companion object {
-        private const val KEY = "credit_sms_events_v3"
+        private const val KEY = "credit_sms_events_v2"
         private const val MAX_EVENTS = 500
         private val LOCK = Any()
     }
