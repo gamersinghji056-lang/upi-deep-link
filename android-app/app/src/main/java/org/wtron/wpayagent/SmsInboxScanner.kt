@@ -2,6 +2,7 @@ package org.wtron.wpayagent
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.Telephony
 
@@ -57,7 +58,8 @@ object SmsInboxScanner {
                     body = body,
                     receivedAt = receivedAt,
                     scheduleUpload = false,
-                    recordReceiverHealth = false
+                    recordReceiverHealth = false,
+                    notifyUi = false
                 )
                 scanned++
                 if (result.isCredit) creditMessages++
@@ -65,6 +67,7 @@ object SmsInboxScanner {
         }
 
         AgentStore(context).recordInboxRefresh(scanned, creditMessages, newestAt, oldestAt)
+        context.sendBroadcast(Intent(MonitorActivity.ACTION_FEED_UPDATED).setPackage(context.packageName))
         if (creditMessages > 0) CreditRetryScheduler.enqueue(context)
         return ScanResult(scanned, creditMessages, newestAt, oldestAt)
     }
