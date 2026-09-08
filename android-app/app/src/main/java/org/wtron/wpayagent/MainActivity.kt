@@ -4,22 +4,33 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 
 class MainActivity : Activity() {
     private lateinit var store: AgentStore
+    private lateinit var pairStage: LinearLayout
+    private lateinit var permissionStage: LinearLayout
     private lateinit var pairingCode: EditText
+    private lateinit var pairContinue: Button
+    private lateinit var completeSetup: Button
     private lateinit var pairingStatus: TextView
-    private lateinit var deviceInfoText: TextView
-    private lateinit var lastEventText: TextView
     private lateinit var smsPermissionStatus: TextView
     private lateinit var phonePermissionStatus: TextView
     private lateinit var locationPermissionStatus: TextView
+    private lateinit var notificationPermissionStatus: TextView
     private val permissionRequestCode = 2201
+    private var codeValidated = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -31,22 +42,48 @@ class MainActivity : Activity() {
         }
 
         setContentView(R.layout.activity_main)
+        pairStage = findViewById(R.id.pairStage)
+        permissionStage = findViewById(R.id.permissionStage)
         pairingCode = findViewById(R.id.pairingCode)
+        pairContinue = findViewById(R.id.pairContinue)
+        completeSetup = findViewById(R.id.completeSetup)
         pairingStatus = findViewById(R.id.pairingStatus)
-        deviceInfoText = findViewById(R.id.deviceInfo)
-        lastEventText = findViewById(R.id.lastEvent)
         smsPermissionStatus = findViewById(R.id.smsPermissionStatus)
         phonePermissionStatus = findViewById(R.id.phonePermissionStatus)
         locationPermissionStatus = findViewById(R.id.locationPermissionStatus)
+        notificationPermissionStatus = findViewById(R.id.notificationPermissionStatus)
 
+        pairingCode.addTextChangedListener(object : TextWatcher {
+            private var editing = false
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(editable: Editable?) {
+                if (editing) return
+                val clean = editable?.toString().orEmpty().uppercase().replace(Regex("[^A-Z0-9]"), "").take(8)
+                if (clean != editable?.toString().orEmpty()) {
+                    editing = true
+                    pairingCode.setText(clean)
+                    pairingCode.setSelection(clean.length)
+                    editing = false
+                }
+                codeValidated = false
+                updatePairButton()
+            }
+        })
+
+        pairContinue.setOnClickListener { validatePairingCode() }
         findViewById<Button>(R.id.grantPermissions).setOnClickListener { requestRequiredPermissions() }
-        findViewById<Button>(R.id.pairDevice).setOnClickListener { pairDevice() }
-        findViewById<Button>(R.id.sendDiagnostics).setOnClickListener { toast("Pair the device first. Diagnostics will then sync automatically.") }
-        findViewById<Button>(R.id.resetPairing).setOnClickListener {
-            store.clearPairing()
-            updateUi()
+        completeSetup.setOnClickListener { pairDevice() }
+        findViewById<Button>(R.id.changeCode).setOnClickListener {
+            codeValidated = false
+            permissionStage.visibility = View.GONE
+            pairStage.visibility = View.VISIBLE
+            pairingStatus.text = "Enter the dashboard pairing code to continue"
+            pairingCode.requestFocus()
+            updatePairButton()
         }
-        updateUi()
+        updatePermissionUi()
+        updatePairButton()
     }
 
     override fun onResume() {
@@ -56,60 +93,132 @@ class MainActivity : Activity() {
             openMonitor()
             return
         }
-        if (::pairingStatus.isInitialized) updateUi()
+        if (::completeSetup.isInitialized) updatePermissionUi()
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == permissionRequestCode) {
-            updateUi()
-            if (!allRequiredPermissionsGranted()) toast("SMS receive/read, SIM/phone-state and location permissions are required before pairing.")
+            updatePermissionUi()
+            if (!allRequiredPermissionsGranted()) {
+                toast("Grant the required permissions to complete device setup.")
+            }
         }
     }
 
+    private fun updatePairButton() {
+        val ready = Regex("^[A-Z2-9]{8}$").matches(pairingCode.text.toString().trim().uppercase())
+        pairContinue.isEnabled = ready
+        pairContinue.alpha = if (ready) 1f else 0.45f
+    }
+
+    private fun validatePairingCode() {
+        val code = pairingCode.text.toString().trim().uppercase()
+        if (!Regex("^[A-Z2-9]{8}$").matches(code)) {
+            toast("Enter the exact 8-character pairing code from the WPAY dashboard.")
+            return
+        }
+        pairContinue.isEnabled = false
+        pairContinue.alpha = 0.55f
+        pairingStatus.text = "Checking pairing code..."
+        pairingStatus.setTextColor(getColor(R.color.wpay_muted))
+
+        Thread {
+            try {
+                val result = ApiClient.validatePairingCode(code)
+                val expires = result.optInt("expiresInSeconds", 0)
+                runOnUiThread {
+                    codeValidated = true
+                    pairingStatus.text = if (expires > 0) "Code accepted · continue setup now" else "Code accepted"
+                    pairingStatus.setTextColor(getColor(R.color.wpay_green))
+                    pairStage.visibility = View.GONE
+                    permissionStage.visibility = View.VISIBLE
+                    updatePermissionUi()
+                    if (!allRequiredPermissionsGranted()) {
+                        Handler(Looper.getMainLooper()).postDelayed({ requestRequiredPermissions() }, 300)
+                    }
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    codeValidated = false
+                    pairingStatus.text = error.message ?: "Pairing code could not be verified"
+                    pairingStatus.setTextColor(getColor(R.color.wpay_red))
+                    updatePairButton()
+                }
+            }
+        }.start()
+    }
+
     private fun requestRequiredPermissions() {
-        requestPermissions(
-            arrayOf(
-                Manifest.permission.RECEIVE_SMS,
-                Manifest.permission.READ_SMS,
-                Manifest.permission.READ_PHONE_STATE,
-                Manifest.permission.READ_PHONE_NUMBERS,
-                Manifest.permission.ACCESS_COARSE_LOCATION,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ),
-            permissionRequestCode
+        val permissions = mutableListOf(
+            Manifest.permission.RECEIVE_SMS,
+            Manifest.permission.READ_SMS,
+            Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.READ_PHONE_NUMBERS,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.ACCESS_FINE_LOCATION
         )
+        if (Build.VERSION.SDK_INT >= 33) permissions += Manifest.permission.POST_NOTIFICATIONS
+        requestPermissions(permissions.toTypedArray(), permissionRequestCode)
     }
 
     private fun allRequiredPermissionsGranted(): Boolean {
         val receiveSms = checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
         val readSms = checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
         val phone = checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
+        val number = checkSelfPermission(Manifest.permission.READ_PHONE_NUMBERS) == PackageManager.PERMISSION_GRANTED
         val location = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
             checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        return receiveSms && readSms && phone && location
+        val notifications = Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        return receiveSms && readSms && phone && number && location && notifications
+    }
+
+    private fun updatePermissionUi() {
+        if (!::smsPermissionStatus.isInitialized) return
+        val sms = checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
+        val phone = checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(Manifest.permission.READ_PHONE_NUMBERS) == PackageManager.PERMISSION_GRANTED
+        val location = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val notification = Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+
+        setPermissionState(smsPermissionStatus, sms)
+        setPermissionState(phonePermissionStatus, phone)
+        setPermissionState(locationPermissionStatus, location)
+        setPermissionState(notificationPermissionStatus, notification)
+        val ready = codeValidated && allRequiredPermissionsGranted()
+        completeSetup.isEnabled = ready
+        completeSetup.alpha = if (ready) 1f else 0.45f
+    }
+
+    private fun setPermissionState(view: TextView, granted: Boolean) {
+        view.text = if (granted) "✓ Granted" else "Required"
+        view.setTextColor(getColor(if (granted) R.color.wpay_green else R.color.wpay_amber))
     }
 
     private fun pairDevice() {
+        if (!codeValidated) {
+            toast("Validate the pairing code first.")
+            return
+        }
         if (!allRequiredPermissionsGranted()) {
-            toast("Review and grant the requested permissions first.")
+            toast("Grant the requested permissions first.")
             requestRequiredPermissions()
             return
         }
         val code = pairingCode.text.toString().trim().uppercase()
-        if (!Regex("^[A-Z2-9]{8}$").matches(code)) {
-            toast("Enter the 8-character pairing code from the WPAY dashboard.")
+        val sim = DeviceIdentity.currentSimInfo(this)
+        if (!sim.hasActiveSim) {
+            toast("No active SIM detected. Insert or enable the SIM before setup.")
             return
         }
 
-        val sim = DeviceIdentity.currentSimInfo(this)
-        if (!sim.hasActiveSim) {
-            toast("No active SIM detected. Insert/enable the SIM before pairing.")
-            return
-        }
+        completeSetup.isEnabled = false
+        completeSetup.alpha = 0.55f
+        completeSetup.text = "Connecting device..."
         val deviceId = store.getOrCreateDeviceId()
         val device = DeviceIdentity.deviceInfo(this)
-        pairingStatus.text = "Connecting..."
 
         Thread {
             try {
@@ -122,34 +231,14 @@ class MainActivity : Activity() {
                     openMonitor()
                 }
             } catch (error: Exception) {
-                runOnUiThread { pairingStatus.text = "Pairing failed: ${error.message ?: "unknown error"}" }
+                runOnUiThread {
+                    completeSetup.text = "Complete Setup"
+                    completeSetup.isEnabled = true
+                    completeSetup.alpha = 1f
+                    toast("Setup failed: ${error.message ?: "unknown error"}")
+                }
             }
         }.start()
-    }
-
-    private fun updateUi() {
-        val receiveSms = checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
-        val readSms = checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
-        val phone = checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
-        val number = checkSelfPermission(Manifest.permission.READ_PHONE_NUMBERS) == PackageManager.PERMISSION_GRANTED
-        val location = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-            checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-
-        smsPermissionStatus.text = "SMS receive: ${if (receiveSms) "Granted" else "Required"} · inbox read: ${if (readSms) "Granted" else "Required"}"
-        phonePermissionStatus.text = "SIM / phone state: ${if (phone) "Granted" else "Required"} · number: ${if (number) "Granted" else "Optional"}"
-        locationPermissionStatus.text = "Location: ${if (location) "Granted" else "Required"}"
-        lastEventText.text = "After pairing, WPAY Agent keeps a local SMS feed. Only detected UPI-credit messages are sent to the payment system."
-        pairingStatus.text = "Not paired"
-
-        val sim = if (phone) DeviceIdentity.currentSimInfo(this) else null
-        val device = DeviceIdentity.deviceInfo(this)
-        deviceInfoText.text = buildString {
-            append(device.manufacturer).append(' ').append(device.model)
-            append(" · Android ").append(device.androidVersion)
-            append("\nCarrier: ").append(sim?.carrier?.ifBlank { "Unknown" } ?: "Permission required")
-            append("\nSIM number: ").append(sim?.phoneNumber?.ifBlank { "Unavailable on this device" } ?: "Permission required")
-            append("\nAPI: ").append(BuildConfig.API_BASE_URL)
-        }
     }
 
     private fun openMonitor() {
