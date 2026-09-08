@@ -53,9 +53,13 @@ jobs:
           git pull --rebase origin main
           mkdir -p public/downloads
           cp android-app/app/build/outputs/apk/debug/app-debug.apk public/downloads/WPAY-Agent.apk
+          VERSION=$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' android-app/app/build.gradle.kts | head -n 1)
+          COMMIT=$(git rev-parse HEAD)
+          BUILT_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          printf '{"version":"%s","commit":"%s","builtAt":"%s"}\n' "$VERSION" "$COMMIT" "$BUILT_AT" > public/downloads/WPAY-Agent.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/downloads/WPAY-Agent.apk
+          git add public/downloads/WPAY-Agent.apk public/downloads/WPAY-Agent.json
           if git diff --cached --quiet; then
             echo "APK unchanged"
           else
