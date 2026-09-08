@@ -46,16 +46,29 @@ object DiagnosticsCollector {
             .put("charging", charging)
             .put("networkType", networkType)
             .put("carrier", carrier)
-            .put("locationEnabled", runCatching { locationManager.isLocationEnabled }.getOrDefault(false))
+            .put("locationEnabled", isLocationEnabledCompat(locationManager))
 
         currentOrLastLocation(context)?.let { location ->
-            result.put("location", JSONObject()
-                .put("latitude", location.latitude)
-                .put("longitude", location.longitude)
-                .put("accuracy", location.accuracy.toDouble())
-                .put("provider", location.provider ?: ""))
+            result.put(
+                "location",
+                JSONObject()
+                    .put("latitude", location.latitude)
+                    .put("longitude", location.longitude)
+                    .put("accuracy", location.accuracy.toDouble())
+                    .put("provider", location.provider ?: "")
+                    .put("capturedAt", location.time)
+            )
         }
         return result
+    }
+
+    private fun isLocationEnabledCompat(manager: LocationManager): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            runCatching { manager.isLocationEnabled }.getOrDefault(false)
+        } else {
+            listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+                .any { provider -> runCatching { manager.isProviderEnabled(provider) }.getOrDefault(false) }
+        }
     }
 
     private fun currentOrLastLocation(context: Context): Location? {
@@ -64,7 +77,12 @@ object DiagnosticsCollector {
         if (!fine && !coarse) return null
 
         val manager = context.getSystemService(LocationManager::class.java)
-        val providers = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+        val cached = bestLastKnown(manager)
+        if (cached != null && System.currentTimeMillis() - cached.time <= 5 * 60 * 1000) {
+            return cached
+        }
+
+        val providers = listOf(LocationManager.NETWORK_PROVIDER, LocationManager.GPS_PROVIDER)
             .filter { runCatching { manager.isProviderEnabled(it) }.getOrDefault(false) }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -80,15 +98,20 @@ object DiagnosticsCollector {
                         result.set(location)
                         latch.countDown()
                     }
-                    latch.await(4, TimeUnit.SECONDS)
+                    latch.await(5, TimeUnit.SECONDS)
                     result.get()?.let { return it }
                 } catch (_: SecurityException) {
-                    return null
+                    return cached
                 } catch (_: Exception) {
+                    // Try the next provider, then fall back to cached location.
                 }
             }
         }
 
+        return cached ?: bestLastKnown(manager)
+    }
+
+    private fun bestLastKnown(manager: LocationManager): Location? {
         return try {
             manager.getProviders(true)
                 .mapNotNull { provider -> runCatching { manager.getLastKnownLocation(provider) }.getOrNull() }
