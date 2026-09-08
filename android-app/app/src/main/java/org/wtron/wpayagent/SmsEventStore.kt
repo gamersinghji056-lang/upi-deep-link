@@ -23,18 +23,26 @@ class SmsEventStore(context: Context) {
     private val prefs = context.getSharedPreferences("wpay_agent", Context.MODE_PRIVATE)
 
     companion object {
-        private const val KEY = "credit_sms_events_v2"
-        private const val MAX_EVENTS = 100
+        private const val KEY = "credit_sms_events_v3"
+        private const val MAX_EVENTS = 500
         private val LOCK = Any()
     }
 
-    fun add(kind: String, reference: String, amount: Double, sender: String, body: String, receivedAt: Long): Event {
+    fun add(
+        kind: String,
+        reference: String,
+        amount: Double,
+        sender: String,
+        body: String,
+        receivedAt: Long,
+        uploadable: Boolean
+    ): Event {
         synchronized(LOCK) {
             val existing = readAllMutable()
             val duplicate = existing.firstOrNull {
-                it.optString("reference") == reference &&
-                    kotlin.math.abs(it.optDouble("amount") - amount) < 0.001 &&
-                    kotlin.math.abs(it.optLong("receivedAt") - receivedAt) < 60_000
+                it.optString("sender") == sender.take(120) &&
+                    it.optString("body") == body.take(3000) &&
+                    kotlin.math.abs(it.optLong("receivedAt") - receivedAt) < 5_000
             }
             if (duplicate != null) return fromJson(duplicate)
 
@@ -46,7 +54,7 @@ class SmsEventStore(context: Context) {
                 .put("sender", sender.take(120))
                 .put("body", body.take(3000))
                 .put("receivedAt", receivedAt)
-                .put("status", "PENDING")
+                .put("status", if (uploadable) "PENDING" else "LOCAL_ONLY")
                 .put("attempts", 0)
                 .put("lastError", "")
                 .put("serverState", "")
@@ -59,7 +67,9 @@ class SmsEventStore(context: Context) {
 
     fun list(): List<Event> = synchronized(LOCK) { readAllMutable().map(::fromJson) }
 
-    fun pending(): List<Event> = list().filter { it.status != "SENT" }
+    fun pending(): List<Event> = list().filter {
+        (it.kind == "EXACT" || it.kind == "CANDIDATE") && it.status != "SENT"
+    }
 
     fun markSent(id: String, serverState: String) {
         update(id) {
@@ -107,7 +117,7 @@ class SmsEventStore(context: Context) {
         sender = obj.optString("sender"),
         body = obj.optString("body"),
         receivedAt = obj.optLong("receivedAt"),
-        status = obj.optString("status", "PENDING"),
+        status = obj.optString("status", "LOCAL_ONLY"),
         attempts = obj.optInt("attempts"),
         lastError = obj.optString("lastError"),
         serverState = obj.optString("serverState")
