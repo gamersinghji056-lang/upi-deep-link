@@ -6,6 +6,7 @@ const { initDeviceTables, createDeviceRouter, sha256 } = require("./lib/device-p
 const { initDeviceCreditTables, createDeviceCreditRouter } = require("./lib/device-credit-router");
 const { initPaymentVerificationTables, createPaymentVerificationRouter } = require("./lib/payment-verification");
 const { initDeviceOtpTables, createDeviceOtpRouter } = require("./lib/device-otp-router");
+const { initStatementTables, createStatementMatchRouter } = require("./lib/statement-match-router");
 const { requireDashboard, loginHandler, logoutHandler } = require("./lib/dashboard-auth");
 
 async function start() {
@@ -16,11 +17,12 @@ async function start() {
     await initPaymentVerificationTables(pool);
     await initDeviceCreditTables(pool);
     await initDeviceOtpTables(pool);
+    await initStatementTables(pool);
 
     const coreApp = createApp({ pool, env: process.env });
     const app = express();
     app.disable("x-powered-by");
-    app.use(express.json({ limit: "64kb" }));
+    app.use(express.json({ limit: "2mb" }));
 
     app.get("/login", (_req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
     app.post("/api/dashboard/login", loginHandler(process.env));
@@ -30,9 +32,10 @@ async function start() {
     app.use((req, res, next) => {
       const dashboardPage = req.method === "GET" && (req.path === "/" || req.path === "/index.html");
       const deviceAdminApi = req.path.startsWith("/api/devices/admin/");
+      const statementApi = req.path.startsWith("/api/statements/");
       const createPayment = req.method === "POST" && req.path === "/api/payments";
       const createOrder = req.method === "POST" && req.path === "/api/orders";
-      if (dashboardPage || deviceAdminApi || createPayment || createOrder) return dashboardAuth(req, res, next);
+      if (dashboardPage || deviceAdminApi || statementApi || createPayment || createOrder) return dashboardAuth(req, res, next);
       next();
     });
 
@@ -54,6 +57,7 @@ async function start() {
     app.use("/api/devices", createDeviceRouter({ pool, env: process.env }));
     app.use("/api/devices", createDeviceCreditRouter({ pool }));
     app.use("/api/devices", createDeviceOtpRouter({ pool }));
+    app.use("/api/statements", createStatementMatchRouter({ pool }));
     app.use("/api", createPaymentVerificationRouter({ pool }));
     app.use(coreApp);
 
