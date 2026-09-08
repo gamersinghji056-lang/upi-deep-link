@@ -73,6 +73,17 @@ class CreditSmsParserTest {
     }
 
     @Test
+    fun idbiCreditWithoutUtrStillCaptured() {
+        val message = "IDBI Bank A/c NN12810 credited for INR 10.00 thru UPI. Bal INR 255.42 (incl. of chq in clg) as of 08 SEP 21:30hr. If not used by you, call 18002094324"
+        assertTrue(CreditSmsParser.isLikelyUpiCredit(message))
+        assertNull(CreditSmsParser.parse(message, "VM-IDBIBK-S", now))
+        assertNull(CreditSmsParser.parseCandidate(message, "VM-IDBIBK-S", now))
+        val noRef = CreditSmsParser.parseWithoutReference(message, "VM-IDBIBK-S", now)
+        assertNotNull(noRef)
+        assertEquals(10.0, noRef!!.amount, 0.001)
+    }
+
+    @Test
     fun ambiguousReferenceBecomesCandidate() {
         val message = "A/c XX1111 credited by Rs 10.00 via UPI. RRN: 31412345632"
         assertNull(CreditSmsParser.parse(message, "BANK", now))
@@ -87,6 +98,7 @@ class CreditSmsParserTest {
         val message = "Your account is credited by Rs 1000.00 by cash deposit. Ref No 123456789012"
         assertFalse(CreditSmsParser.isLikelyUpiCredit(message))
         assertNull(CreditSmsParser.parse(message, "BANK", now))
+        assertNull(CreditSmsParser.parseWithoutReference(message, "BANK", now))
     }
 
     @Test
@@ -94,5 +106,6 @@ class CreditSmsParserTest {
         val message = "A/c XX1234 debited by Rs 20.00 via UPI Ref no 123456789012"
         assertFalse(CreditSmsParser.isLikelyUpiCredit(message))
         assertNull(CreditSmsParser.parse(message, "BANK", now))
+        assertNull(CreditSmsParser.parseWithoutReference(message, "BANK", now))
     }
 }
