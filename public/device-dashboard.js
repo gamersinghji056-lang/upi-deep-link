@@ -30,6 +30,21 @@
   function online(value) { const t = new Date(value || 0).getTime(); return Number.isFinite(t) && Date.now() - t <= 10 * 60 * 1000; }
   function deviceName(d) { return [d?.manufacturer,d?.model].filter(Boolean).join(" ") || d?.id || "—"; }
 
+  async function refreshApkInfo() {
+    const link = $("apkDownloadLink");
+    const versionLabel = $("apkVersion");
+    if (link) link.href = "/downloads/WPAY-Agent.apk?fresh=" + Date.now();
+    try {
+      const r = await fetch("/downloads/WPAY-Agent.json?fresh=" + Date.now(), { cache: "no-store" });
+      if (!r.ok) return;
+      const data = await r.json();
+      const version = String(data.version || "").trim();
+      const commit = String(data.commit || "").trim();
+      if (versionLabel && version) versionLabel.textContent = "v" + version;
+      if (link) link.href = "/downloads/WPAY-Agent.apk?v=" + encodeURIComponent(commit || version || Date.now());
+    } catch { /* fallback link already points to the latest path */ }
+  }
+
   function renderCards() {
     if (!devices.length) { grid.innerHTML = '<div class="muted">No Android device has been paired yet.</div>'; return; }
     grid.innerHTML = devices.map(d => {
@@ -129,5 +144,6 @@
   if (refreshSelectedBtn) refreshSelectedBtn.addEventListener("click", () => selectedId && loadDevice(selectedId));
   eventTabs.forEach(btn => btn.addEventListener("click", () => setEventTab(btn.dataset.eventTab)));
   setEventTab("utr");
+  refreshApkInfo();
   refreshDevices(true);
 })();
