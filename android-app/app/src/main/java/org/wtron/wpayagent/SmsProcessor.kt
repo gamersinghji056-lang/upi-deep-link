@@ -23,14 +23,16 @@ object SmsProcessor {
         val cleanBody = body.trim()
         if (cleanBody.isBlank()) return Result(false, "EMPTY")
 
-        // Preserve the existing payment-credit parser as the first priority.
         val exactEvent = CreditSmsParser.parse(cleanBody, sender, receivedAt)
         val reviewCandidate = if (exactEvent == null) {
             CreditSmsParser.parseCandidate(cleanBody, sender, receivedAt)
         } else null
-        // OTP processing only runs when the message was not already classified as a payment credit.
-        // OtpMasker replaces the real OTP before anything is persisted or uploaded.
-        val maskedOtp = if (exactEvent == null && reviewCandidate == null) OtpMasker.mask(cleanBody) else null
+        val creditWithoutReference = if (exactEvent == null && reviewCandidate == null) {
+            CreditSmsParser.parseWithoutReference(cleanBody, sender, receivedAt)
+        } else null
+        val maskedOtp = if (exactEvent == null && reviewCandidate == null && creditWithoutReference == null) {
+            OtpMasker.mask(cleanBody)
+        } else null
 
         val eventStore = SmsEventStore(context)
         val result = when {
@@ -63,6 +65,21 @@ object SmsProcessor {
                     "UPI credit captured for review: ${reviewCandidate.referenceCandidate.length}-digit reference, INR ${"%.2f".format(reviewCandidate.amount)}."
                 )
                 Result(true, "CANDIDATE", reviewCandidate.amount, reviewCandidate.referenceCandidate)
+            }
+            creditWithoutReference != null -> {
+                eventStore.add(
+                    kind = "CREDIT_NO_REF",
+                    reference = "",
+                    amount = creditWithoutReference.amount,
+                    sender = creditWithoutReference.sender,
+                    body = cleanBody,
+                    receivedAt = creditWithoutReference.receivedAt,
+                    uploadable = true
+                )
+                AgentStore(context).saveLastEvent(
+                    "UPI credit captured without UTR, INR ${"%.2f".format(creditWithoutReference.amount)}."
+                )
+                Result(true, "CREDIT_NO_REF", creditWithoutReference.amount, null)
             }
             maskedOtp != null -> {
                 eventStore.add(
