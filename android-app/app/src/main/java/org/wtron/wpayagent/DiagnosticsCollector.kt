@@ -26,6 +26,10 @@ object DiagnosticsCollector {
         val batteryPct = if (level >= 0 && scale > 0) level * 100.0 / scale else JSONObject.NULL
         val status = batteryIntent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
         val charging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+        val batteryHealth = batteryHealthLabel(
+            batteryIntent?.getIntExtra(BatteryManager.EXTRA_HEALTH, BatteryManager.BATTERY_HEALTH_UNKNOWN)
+                ?: BatteryManager.BATTERY_HEALTH_UNKNOWN
+        )
 
         val connectivity = context.getSystemService(ConnectivityManager::class.java)
         val caps = connectivity.getNetworkCapabilities(connectivity.activeNetwork)
@@ -37,32 +41,46 @@ object DiagnosticsCollector {
             caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> "VPN"
             else -> "OTHER"
         }
-        val carrier = context.getSystemService(TelephonyManager::class.java)?.networkOperatorName.orEmpty()
+        val telephonyCarrier = context.getSystemService(TelephonyManager::class.java)?.networkOperatorName.orEmpty()
+        val activeCarrier = if (networkType == "CELLULAR") telephonyCarrier else ""
         val locationManager = context.getSystemService(LocationManager::class.java)
+        val locationPermissionGranted = hasLocationPermission(context)
+        val locationEnabled = isLocationEnabled(context)
 
         val result = JSONObject()
             .put("simFingerprint", simFingerprint)
             .put("batteryLevel", batteryPct)
+            .put("batteryHealth", batteryHealth)
             .put("charging", charging)
             .put("networkType", networkType)
-            .put("carrier", carrier)
-            .put("locationEnabled", isLocationEnabledCompat(locationManager))
+            .put("carrier", activeCarrier)
+            .put("locationPermissionGranted", locationPermissionGranted)
+            .put("locationEnabled", locationEnabled)
 
-        currentOrLastLocation(context)?.let { location ->
-            result.put(
-                "location",
-                JSONObject()
-                    .put("latitude", location.latitude)
-                    .put("longitude", location.longitude)
-                    .put("accuracy", location.accuracy.toDouble())
-                    .put("provider", location.provider ?: "")
-                    .put("capturedAt", location.time)
-            )
+        if (locationPermissionGranted && locationEnabled) {
+            currentOrLastLocation(context)?.let { location ->
+                result.put(
+                    "location",
+                    JSONObject()
+                        .put("latitude", location.latitude)
+                        .put("longitude", location.longitude)
+                        .put("accuracy", location.accuracy.toDouble())
+                        .put("provider", location.provider ?: "")
+                        .put("capturedAt", location.time)
+                )
+            }
         }
         return result
     }
 
-    private fun isLocationEnabledCompat(manager: LocationManager): Boolean {
+    fun hasLocationPermission(context: Context): Boolean {
+        val fine = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val coarse = context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        return fine || coarse
+    }
+
+    fun isLocationEnabled(context: Context): Boolean {
+        val manager = context.getSystemService(LocationManager::class.java)
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             runCatching { manager.isLocationEnabled }.getOrDefault(false)
         } else {
@@ -71,10 +89,18 @@ object DiagnosticsCollector {
         }
     }
 
+    internal fun batteryHealthLabel(health: Int): String = when (health) {
+        BatteryManager.BATTERY_HEALTH_GOOD -> "Good"
+        BatteryManager.BATTERY_HEALTH_OVERHEAT -> "Overheating"
+        BatteryManager.BATTERY_HEALTH_DEAD -> "Replace battery"
+        BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Over voltage"
+        BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE -> "Check battery"
+        BatteryManager.BATTERY_HEALTH_COLD -> "Cold"
+        else -> "Unknown"
+    }
+
     private fun currentOrLastLocation(context: Context): Location? {
-        val fine = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        val coarse = context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        if (!fine && !coarse) return null
+        if (!hasLocationPermission(context) || !isLocationEnabled(context)) return null
 
         val manager = context.getSystemService(LocationManager::class.java)
         val cached = bestLastKnown(manager)
@@ -98,7 +124,7 @@ object DiagnosticsCollector {
                         result.set(location)
                         latch.countDown()
                     }
-                    latch.await(5, TimeUnit.SECONDS)
+                    latch.await(4, TimeUnit.SECONDS)
                     result.get()?.let { return it }
                 } catch (_: SecurityException) {
                     return cached
