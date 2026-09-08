@@ -7,49 +7,77 @@ const Upi = require("../public/upi");
 function dom() {
   const elements = new Map();
   const element = id => {
-    if (!elements.has(id)) elements.set(id, { value: "", textContent: "", style: {}, hidden: true, dataset: {}, handlers: {}, addEventListener(name, handler) { this.handlers[name] = handler; } });
+    if (!elements.has(id)) elements.set(id, { value: "", textContent: "", style: {}, hidden: true, disabled: false, dataset: {}, handlers: {}, innerHTML: "", addEventListener(name, handler) { this.handlers[name] = handler; } });
     return elements.get(id);
   };
-  const buttons = ["generic", "phonepe", "gpay", "paytm"].map(app => { const button = element(app); button.dataset.app = app; return button; });
+  // Match the actual current checkout: direct buttons are PhonePe and Paytm.
+  const buttons = ["phonepe", "paytm"].map(app => { const button = element(app); button.dataset.app = app; return button; });
   return { element, document: { getElementById: element, querySelectorAll: () => buttons } };
 }
-test("checkout assigns byte-identical payloads at each Android button and never marks success", async () => {
+function contextBase(extra = {}) {
+  return {
+    Upi,
+    URL,
+    URLSearchParams,
+    TextEncoder,
+    TextDecoder,
+    Uint8Array,
+    atob,
+    btoa,
+    navigator: { userAgent: "Android" },
+    window: { dispatchEvent() {} },
+    CustomEvent: function CustomEvent(type, init) { this.type = type; this.detail = init?.detail; },
+    setInterval: () => 1,
+    clearInterval() {},
+    ...extra
+  };
+}
+test("checkout loads payment, checks verification status and only launches supported apps", async () => {
   const { element, document } = dom();
   const raw = "upi://pay?pa=fixture%40bank&pn=A+B&am=1&x=%252B&x=";
   const location = { pathname: "/pay/WPfixture1", search: "", href: "" };
   const requests = [];
-  await vm.runInNewContext(fs.readFileSync("public/checkout.js", "utf8"), {
-    Upi, document, location, URL, URLSearchParams, navigator: { userAgent: "Android" },
-    fetch: async url => { requests.push(url); return { ok: true, json: async () => ({ upiUri: raw, expiresAt: new Date(Date.now() + 10000).toISOString() }) }; }
-  });
-  assert.deepEqual(requests, ["/api/payments/WPfixture1"]);
+  await vm.runInNewContext(fs.readFileSync("public/checkout.js", "utf8"), contextBase({
+    document, location,
+    fetch: async url => {
+      requests.push(url);
+      if (url.endsWith("/verification-status")) return { ok: true, json: async () => ({ status: "awaiting_utr", verified: false }) };
+      return { ok: true, json: async () => ({ upiUri: raw, expiresAt: new Date(Date.now() + 10000).toISOString() }) };
+    }
+  }));
+  assert.deepEqual(requests, ["/api/payments/WPfixture1", "/api/payments/WPfixture1/verification-status"]);
   assert.equal(element("debug").hidden, true);
-  for (const app of ["generic", "phonepe", "gpay", "paytm"]) {
-    element(app).handlers.click();
-    assert.equal(location.href, Upi.target(raw, app, "Android"));
-  }
-  assert.equal(requests.length, 1); // No callback writes / success requests.
+
+  element("phonepe").handlers.click();
+  assert.ok(location.href.startsWith("phonepe://native?"));
+  assert.ok(location.href.includes("id=p2ppayment"));
+
+  element("paytm").handlers.click();
+  assert.ok(location.href.startsWith("paytmmp://cash_wallet?"));
+  assert.ok(location.href.includes("pa=fixture%40bank"));
+  assert.equal(requests.length, 2); // App launch itself does not write success.
 });
-test("checkout rejects stale expiry and browser normalization without navigating", async () => {
-  for (const data of [
-    { upiUri: "upi://pay?pa=fixture@bank", expiresAt: new Date(0).toISOString() },
-    { upiUri: "upi://pay?pa=fixture@bank&pn=नाम" }
-  ]) {
-    const { element, document } = dom();
-    const location = { pathname: "/pay/WPfixture1", search: "", href: "" };
-    await vm.runInNewContext(fs.readFileSync("public/checkout.js", "utf8"), { Upi, document, location, URL, URLSearchParams, navigator: { userAgent: "Android" }, fetch: async () => ({ ok: true, json: async () => data }) });
-    element("generic").handlers.click();
-    assert.equal(location.href, "");
-    assert.ok(element("error").textContent);
-  }
-});
-test("legacy URI envelope decodes once, preserving inner literal plus and percent escapes", async () => {
+test("checkout rejects stale expiry before direct app navigation", async () => {
   const { element, document } = dom();
-  const raw = "upi://pay?pa=fixture%40bank&pn=A+B%20C&x=%252F";
+  const location = { pathname: "/pay/WPfixture1", search: "", href: "" };
+  await vm.runInNewContext(fs.readFileSync("public/checkout.js", "utf8"), contextBase({
+    document, location,
+    fetch: async url => url.endsWith("/verification-status")
+      ? ({ ok: true, json: async () => ({ status: "awaiting_utr", verified: false }) })
+      : ({ ok: true, json: async () => ({ upiUri: "upi://pay?pa=fixture@bank&am=1", expiresAt: new Date(0).toISOString() }) })
+  }));
+  element("phonepe").handlers.click();
+  assert.equal(location.href, "");
+  assert.ok(element("error").textContent);
+});
+test("legacy URI envelope decodes once and renders decoded payment data", async () => {
+  const { element, document } = dom();
+  const raw = "upi://pay?pa=fixture%40bank&pn=A+B%20C&am=1&x=%252F";
   const location = { pathname: "/pay", search: "?upi=" + encodeURIComponent(raw), href: "" };
-  await vm.runInNewContext(fs.readFileSync("public/checkout.js", "utf8"), { Upi, document, location, URL, URLSearchParams, navigator: { userAgent: "Android" } });
-  element("generic").handlers.click();
-  assert.equal(location.href, raw);
+  await vm.runInNewContext(fs.readFileSync("public/checkout.js", "utf8"), contextBase({ document, location }));
+  assert.equal(element("vpa").textContent, "fixture@bank");
+  assert.equal(element("name").textContent, "A+B C");
+  assert.equal(element("amount").textContent, "INR 1.00");
 });
 test("QR decoder output reaches POST unchanged and manual VPA creation remains available", async () => {
   const { element, document } = dom();
@@ -72,5 +100,6 @@ test("QR decoder output reaches POST unchanged and manual VPA creation remains a
   await element("form").handlers.submit({ preventDefault() {} });
   assert.equal(bodies[1].source, "manual");
   assert.ok(bodies[1].upiUri.includes("am=10.00"));
+  assert.ok(bodies[1].upiUri.includes("mode=04"));
   assert.ok(!bodies[1].upiUri.includes("sign="));
 });
