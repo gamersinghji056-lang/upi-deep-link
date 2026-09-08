@@ -25,6 +25,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         store = AgentStore(this)
         if (store.isPaired) {
+            CreditRetryScheduler.ensurePeriodic(this)
             openMonitor()
             return
         }
@@ -51,6 +52,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         if (store.isPaired) {
+            CreditRetryScheduler.ensurePeriodic(this)
             openMonitor()
             return
         }
@@ -61,7 +63,7 @@ class MainActivity : Activity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == permissionRequestCode) {
             updateUi()
-            if (!allRequiredPermissionsGranted()) toast("SMS, SIM/phone-state and location permissions are required before pairing.")
+            if (!allRequiredPermissionsGranted()) toast("SMS receive/read, SIM/phone-state and location permissions are required before pairing.")
         }
     }
 
@@ -69,6 +71,7 @@ class MainActivity : Activity() {
         requestPermissions(
             arrayOf(
                 Manifest.permission.RECEIVE_SMS,
+                Manifest.permission.READ_SMS,
                 Manifest.permission.READ_PHONE_STATE,
                 Manifest.permission.READ_PHONE_NUMBERS,
                 Manifest.permission.ACCESS_COARSE_LOCATION,
@@ -79,11 +82,12 @@ class MainActivity : Activity() {
     }
 
     private fun allRequiredPermissionsGranted(): Boolean {
-        val sms = checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
+        val receiveSms = checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
+        val readSms = checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
         val phone = checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
         val location = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
             checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        return sms && phone && location
+        return receiveSms && readSms && phone && location
     }
 
     private fun pairDevice() {
@@ -111,6 +115,7 @@ class MainActivity : Activity() {
             try {
                 val result = ApiClient.pair(code, deviceId, sim, device)
                 store.savePairing(result.deviceId, result.deviceToken, sim.fingerprint)
+                CreditRetryScheduler.ensurePeriodic(this)
                 CreditRetryScheduler.enqueue(this)
                 runOnUiThread {
                     toast("Device connected successfully.")
@@ -123,16 +128,17 @@ class MainActivity : Activity() {
     }
 
     private fun updateUi() {
-        val sms = checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
+        val receiveSms = checkSelfPermission(Manifest.permission.RECEIVE_SMS) == PackageManager.PERMISSION_GRANTED
+        val readSms = checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
         val phone = checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
         val number = checkSelfPermission(Manifest.permission.READ_PHONE_NUMBERS) == PackageManager.PERMISSION_GRANTED
         val location = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
             checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
-        smsPermissionStatus.text = "SMS receive: ${if (sms) "Granted" else "Required"}"
+        smsPermissionStatus.text = "SMS receive: ${if (receiveSms) "Granted" else "Required"} · inbox read: ${if (readSms) "Granted" else "Required"}"
         phonePermissionStatus.text = "SIM / phone state: ${if (phone) "Granted" else "Required"} · number: ${if (number) "Granted" else "Optional"}"
         locationPermissionStatus.text = "Location: ${if (location) "Granted" else "Required"}"
-        lastEventText.text = "After pairing, this screen changes to the live WPAY Agent monitor."
+        lastEventText.text = "After pairing, WPAY Agent keeps a local SMS feed. Only detected UPI-credit messages are sent to the payment system."
         pairingStatus.text = "Not paired"
 
         val sim = if (phone) DeviceIdentity.currentSimInfo(this) else null
