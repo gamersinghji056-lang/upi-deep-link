@@ -23,10 +23,14 @@ object SmsProcessor {
         val cleanBody = body.trim()
         if (cleanBody.isBlank()) return Result(false, "EMPTY")
 
+        // Preserve the existing payment-credit parser as the first priority.
         val exactEvent = CreditSmsParser.parse(cleanBody, sender, receivedAt)
         val reviewCandidate = if (exactEvent == null) {
             CreditSmsParser.parseCandidate(cleanBody, sender, receivedAt)
         } else null
+        // OTP processing only runs when the message was not already classified as a payment credit.
+        // OtpMasker replaces the real OTP before anything is persisted or uploaded.
+        val maskedOtp = if (exactEvent == null && reviewCandidate == null) OtpMasker.mask(cleanBody) else null
 
         val eventStore = SmsEventStore(context)
         val result = when {
@@ -60,6 +64,21 @@ object SmsProcessor {
                 )
                 Result(true, "CANDIDATE", reviewCandidate.amount, reviewCandidate.referenceCandidate)
             }
+            maskedOtp != null -> {
+                eventStore.add(
+                    kind = "OTP_MASKED",
+                    reference = maskedOtp.codeMask,
+                    amount = 0.0,
+                    sender = sender,
+                    body = maskedOtp.messageMasked,
+                    receivedAt = receivedAt,
+                    uploadable = true
+                )
+                AgentStore(context).saveLastEvent(
+                    "OTP event captured and masked (${maskedOtp.otpLength} digits)."
+                )
+                Result(false, "OTP_MASKED", null, maskedOtp.codeMask)
+            }
             else -> {
                 eventStore.add(
                     kind = "LOCAL_ONLY",
@@ -80,7 +99,9 @@ object SmsProcessor {
         if (notifyUi) {
             context.sendBroadcast(Intent(MonitorActivity.ACTION_FEED_UPDATED).setPackage(context.packageName))
         }
-        if (result.isCredit && scheduleUpload) CreditRetryScheduler.enqueue(context)
+        if ((result.isCredit || result.kind == "OTP_MASKED") && scheduleUpload) {
+            CreditRetryScheduler.enqueue(context)
+        }
         return result
     }
 }
