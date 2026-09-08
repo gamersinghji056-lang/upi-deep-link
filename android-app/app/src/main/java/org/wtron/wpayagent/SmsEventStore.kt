@@ -58,9 +58,19 @@ class SmsEventStore(private val context: Context) {
         private const val LEGACY_KEY = "credit_sms_events_v2"
         private const val MIGRATED_KEY = "sms_sqlite_migrated_v1"
         private val LOCK = Any()
+
+        @Volatile
+        private var sharedDb: Db? = null
+
+        private fun helper(context: Context): Db {
+            sharedDb?.let { return it }
+            return synchronized(LOCK) {
+                sharedDb ?: Db(context.applicationContext).also { sharedDb = it }
+            }
+        }
     }
 
-    private val db = Db(context.applicationContext)
+    private val db = helper(context)
 
     init {
         migrateLegacyOnce()
