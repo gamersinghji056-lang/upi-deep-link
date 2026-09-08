@@ -1,13 +1,11 @@
 package org.wtron.wpayagent
 
+import android.Manifest
 import android.app.Activity
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -15,6 +13,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -30,15 +29,10 @@ class MonitorActivity : Activity() {
     private lateinit var deviceStatus: TextView
     private lateinit var messageList: LinearLayout
     private lateinit var emptyMessages: TextView
+    private lateinit var refreshSms: Button
     private val handler = Handler(Looper.getMainLooper())
     private var running = false
-    private var feedReceiverRegistered = false
-
-    private val feedReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            renderMessages()
-        }
-    }
+    private val readSmsPermissionRequestCode = 4402
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,9 +49,12 @@ class MonitorActivity : Activity() {
         deviceStatus = findViewById(R.id.deviceStatus)
         messageList = findViewById(R.id.messageList)
         emptyMessages = findViewById(R.id.emptyMessages)
+        refreshSms = findViewById(R.id.refreshSms)
 
+        refreshSms.setOnClickListener { refreshInbox() }
         findViewById<Button>(R.id.retryPending).setOnClickListener {
             CreditRetryScheduler.enqueue(this)
+            toast("Pending payment-credit messages queued for resend.")
             renderMessages()
         }
         findViewById<Button>(R.id.disconnectDevice).setOnClickListener {
@@ -66,6 +63,7 @@ class MonitorActivity : Activity() {
             finish()
         }
 
+        CreditRetryScheduler.ensurePeriodic(this)
         CreditRetryScheduler.enqueue(this)
         renderMessages()
         refreshConnectionAndDiagnostics()
@@ -74,7 +72,6 @@ class MonitorActivity : Activity() {
     override fun onResume() {
         super.onResume()
         running = true
-        registerFeedReceiver()
         renderMessages()
         handler.post(statusLoop)
     }
@@ -82,26 +79,18 @@ class MonitorActivity : Activity() {
     override fun onPause() {
         running = false
         handler.removeCallbacks(statusLoop)
-        unregisterFeedReceiver()
         super.onPause()
     }
 
-    private fun registerFeedReceiver() {
-        if (feedReceiverRegistered) return
-        val filter = IntentFilter(ACTION_FEED_UPDATED)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(feedReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("DEPRECATION")
-            registerReceiver(feedReceiver, filter)
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == readSmsPermissionRequestCode) {
+            if (checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED) {
+                scanInboxInBackground()
+            } else {
+                toast("SMS inbox permission is required only for manual Refresh SMS. New incoming SMS can still be captured with Receive SMS permission.")
+            }
         }
-        feedReceiverRegistered = true
-    }
-
-    private fun unregisterFeedReceiver() {
-        if (!feedReceiverRegistered) return
-        runCatching { unregisterReceiver(feedReceiver) }
-        feedReceiverRegistered = false
     }
 
     private val statusLoop = object : Runnable {
@@ -111,6 +100,36 @@ class MonitorActivity : Activity() {
             refreshConnectionAndDiagnostics()
             handler.postDelayed(this, 30_000)
         }
+    }
+
+    private fun refreshInbox() {
+        if (checkSelfPermission(Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.READ_SMS), readSmsPermissionRequestCode)
+            return
+        }
+        scanInboxInBackground()
+    }
+
+    private fun scanInboxInBackground() {
+        refreshSms.isEnabled = false
+        refreshSms.text = "Refreshing..."
+        Thread {
+            try {
+                val result = SmsInboxScanner.scanAllInbox(this)
+                runOnUiThread {
+                    renderMessages()
+                    refreshSms.isEnabled = true
+                    refreshSms.text = "Refresh SMS"
+                    toast("${result.scanned} inbox SMS checked · ${result.creditMessages} UPI credit message(s) found.")
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    refreshSms.isEnabled = true
+                    refreshSms.text = "Refresh SMS"
+                    toast("SMS refresh failed: ${error.message ?: "unknown error"}")
+                }
+            }
+        }.start()
     }
 
     private fun refreshConnectionAndDiagnostics() {
@@ -153,7 +172,7 @@ class MonitorActivity : Activity() {
             } catch (_: Exception) {
                 runOnUiThread {
                     showOnline(false, "Offline")
-                    deviceStatus.text = "Server connection unavailable. Pending credit messages will retry automatically."
+                    deviceStatus.text = "Server connection unavailable. Payment-credit messages remain on this phone and retry automatically."
                 }
             }
         }.start()
@@ -166,11 +185,12 @@ class MonitorActivity : Activity() {
 
     private fun renderMessages() {
         if (!::eventStore.isInitialized) return
-        val events = eventStore.list().take(50)
+        val events = eventStore.list().take(100)
         messageList.removeAllViews()
         emptyMessages.visibility = if (events.isEmpty()) View.VISIBLE else View.GONE
 
         events.forEach { event ->
+            val isCredit = event.kind == "EXACT" || event.kind == "CANDIDATE"
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(18, 16, 18, 16)
@@ -181,17 +201,22 @@ class MonitorActivity : Activity() {
             }
 
             card.addView(TextView(this).apply {
-                text = "${event.sender.ifBlank { "Bank SMS" }}  ·  ${formatTime(event.receivedAt)}"
+                text = "${event.sender.ifBlank { "SMS" }}  ·  ${formatTime(event.receivedAt)}"
                 textSize = 13f
                 setTypeface(typeface, Typeface.BOLD)
                 setTextColor(Color.rgb(70, 70, 70))
             })
 
             card.addView(TextView(this).apply {
-                text = "₹${String.format(Locale.US, "%.2f", event.amount)}  ·  Ref ${event.reference}"
-                textSize = 17f
+                text = if (isCredit) {
+                    val refLabel = if (event.kind == "EXACT") "UTR/RRN" else "Reference candidate"
+                    "UPI CREDIT · ₹${String.format(Locale.US, "%.2f", event.amount)} · $refLabel ${event.reference}"
+                } else {
+                    "SMS · Local only"
+                }
+                textSize = 16f
                 setTypeface(typeface, Typeface.BOLD)
-                setTextColor(Color.BLACK)
+                setTextColor(if (isCredit) Color.rgb(21, 128, 61) else Color.BLACK)
                 setPadding(0, 8, 0, 8)
             })
 
@@ -202,15 +227,21 @@ class MonitorActivity : Activity() {
             })
 
             card.addView(TextView(this).apply {
-                val sent = event.status == "SENT"
-                text = if (sent) {
-                    if (event.serverState.isNotBlank()) "Sent to system · ${event.serverState}" else "Sent to system"
-                } else {
-                    if (event.lastError.isNotBlank()) "Pending · auto retry · ${event.lastError}" else "Pending · auto retry"
+                text = when {
+                    !isCredit -> "Not sent · this SMS stays local"
+                    event.status == "SENT" -> if (event.serverState.isNotBlank()) "Sent to system · ${event.serverState}" else "Sent to system"
+                    event.lastError.isNotBlank() -> "Pending · automatic resend · ${event.lastError}"
+                    else -> "Pending · automatic resend"
                 }
                 textSize = 13f
                 setTypeface(typeface, Typeface.BOLD)
-                setTextColor(if (sent) Color.rgb(22, 163, 74) else Color.rgb(217, 119, 6))
+                setTextColor(
+                    when {
+                        !isCredit -> Color.rgb(107, 114, 128)
+                        event.status == "SENT" -> Color.rgb(22, 163, 74)
+                        else -> Color.rgb(217, 119, 6)
+                    }
+                )
                 setPadding(0, 10, 0, 0)
             })
             messageList.addView(card)
@@ -219,4 +250,8 @@ class MonitorActivity : Activity() {
 
     private fun formatTime(value: Long): String =
         SimpleDateFormat("dd MMM yyyy, hh:mm:ss a", Locale.getDefault()).format(Date(value))
+
+    private fun toast(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+    }
 }
