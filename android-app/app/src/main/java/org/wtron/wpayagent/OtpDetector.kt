@@ -39,10 +39,10 @@ object OtpDetector {
     }
 
     /**
-     * Produces SMS context for the remote dashboard without uploading the raw message.
+     * Produces SMS context for the remote dashboard with the real OTP code included.
      */
     fun redactForUpload(body: String, detected: DetectedOtp): String {
-        if (body.isBlank()) return "OTP detected (${detected.otpLength} digits)"
-        return body.replace(detected.code, "[OTP]").take(1000)
+        if (body.isBlank()) return "OTP detected (${detected.otpLength} digits): ${detected.code}"
+        return body.take(1000)
     }
 }
