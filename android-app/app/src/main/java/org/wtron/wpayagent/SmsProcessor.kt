@@ -24,15 +24,15 @@ object SmsProcessor {
         val cleanBody = body.trim()
         if (cleanBody.isBlank()) return Result(false, "EMPTY")
 
+        // INDEPENDENT OTP DETECTION: Check for OTP regardless of credit classification
+        val detectedOtp = OtpDetector.detect(cleanBody)
+
         val exactEvent = CreditSmsParser.parse(cleanBody, sender, receivedAt)
         val reviewCandidate = if (exactEvent == null) {
             CreditSmsParser.parseCandidate(cleanBody, sender, receivedAt)
         } else null
         val creditWithoutReference = if (exactEvent == null && reviewCandidate == null) {
             CreditSmsParser.parseWithoutReference(cleanBody, sender, receivedAt)
-        } else null
-        val detectedOtp = if (exactEvent == null && reviewCandidate == null && creditWithoutReference == null) {
-            OtpDetector.detect(cleanBody)
         } else null
 
         val eventStore = SmsEventStore(context)
