@@ -42,6 +42,7 @@ class OtpDetectorTest {
         val result = OtpDetector.detect("OTP: 8642 for login")
         assertNotNull(result)
         assertEquals(4, result!!.otpLength)
+        assertEquals("**42", OtpDetector.maskForRemote(result))
     }
 
     @Test
@@ -59,15 +60,17 @@ class OtpDetectorTest {
     }
 
     @Test
-    fun redactedUploadCopyKeepsContextButRemovesDetectedCode() {
+    fun uploadCopyKeepsFullContextAndOnlyLastTwoOtpDigits() {
         val body = "Dear Customer,991499 is OTP to approve IMPS Fund trf of Rs.11.00. Do not share OTP."
         val detected = OtpDetector.detect(body)
         assertNotNull(detected)
         assertEquals("991499", detected!!.code)
+        assertEquals("****99", OtpDetector.maskForRemote(detected))
         val redacted = OtpDetector.redactForUpload(body, detected)
         assertFalse(redacted.contains("991499"))
-        assertTrue(redacted.contains("[OTP]"))
+        assertTrue(redacted.contains("****99"))
         assertTrue(redacted.contains("IMPS Fund trf"))
+        assertTrue(redacted.contains("Do not share OTP"))
     }
 
     @Test
