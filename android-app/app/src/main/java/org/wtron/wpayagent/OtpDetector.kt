@@ -56,18 +56,4 @@ object OtpDetector {
 
         return null
     }
-
-    /**
-     * Produces SMS context for the remote dashboard with the real OTP code redacted.
-     * Replaces the OTP code with [OTP] placeholder while preserving the surrounding context.
-     * This prevents exposure of the full authentication code to the backend while maintaining
-     * the SMS context for verification purposes.
-     */
-    fun redactForUpload(body: String, detected: DetectedOtp): String {
-        if (body.isBlank()) return "OTP detected (${detected.otpLength} digits)"
-        
-        // Replace the full OTP code with [OTP] placeholder to protect the code in transit
-        val redacted = body.replace(detected.code, "[OTP]")
-        return redacted.take(1000)
-    }
 }
