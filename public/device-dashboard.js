@@ -248,7 +248,7 @@
   function renderOtpEvents(events, phone, name) {
     if (!events.length) { otpEventsBody.innerHTML='<tr><td colspan="8" class="muted">No OTP detection events yet.</td></tr>'; return; }
     otpEventsBody.innerHTML = events.map(e => {
-      const eventCode = e.otp_code || (Number(e.otp_length) >= 4 ? '*'.repeat(Math.min(8, Number(e.otp_length))) : 'Detected');
+      const eventCode = e.otp_code || 'Unavailable';
       const details = e.message_masked || (Number(e.otp_length) ? `OTP detected (${Number(e.otp_length)} digits)` : 'OTP detected');
       return `<tr><td>${esc(when(e.sms_received_at || e.created_at))}</td><td class="otp-code">${esc(eventCode)}</td><td>${esc(e.sender || '—')}</td><td class="sms-cell">${esc(details)}</td><td class="mobile-full">${esc(phone || 'Unavailable')}</td><td>${esc(name)}</td><td>${esc(e.source || 'sms')}</td><td class="event-status">Received</td></tr>`;
     }).join("");

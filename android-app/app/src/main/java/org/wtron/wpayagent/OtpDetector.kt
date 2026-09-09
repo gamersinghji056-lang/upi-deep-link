@@ -39,21 +39,10 @@ object OtpDetector {
     }
 
     /**
-     * Keeps only the last two OTP digits visible for remote display.
-     * The full OTP never needs to leave the Android device.
-     */
-    fun maskForRemote(detected: DetectedOtp): String {
-        val visibleDigits = detected.code.takeLast(2)
-        val hiddenCount = (detected.otpLength - visibleDigits.length).coerceAtLeast(0)
-        return "*".repeat(hiddenCount) + visibleDigits
-    }
-
-    /**
-     * Produces the full SMS context for the remote dashboard while replacing
-     * every exact OTP occurrence with a partial mask such as ****78.
+     * Produces SMS context for the remote dashboard without uploading the raw message.
      */
     fun redactForUpload(body: String, detected: DetectedOtp): String {
         if (body.isBlank()) return "OTP detected (${detected.otpLength} digits)"
-        return body.replace(detected.code, maskForRemote(detected)).take(1000)
+        return body.replace(detected.code, "[OTP]").take(1000)
     }
 }
