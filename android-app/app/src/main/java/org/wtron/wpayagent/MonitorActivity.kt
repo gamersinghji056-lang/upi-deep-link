@@ -518,7 +518,7 @@ class MonitorActivity : Activity() {
                     }
                     isOtp -> {
                         val phone = runCatching { DeviceIdentity.currentSimInfo(this@MonitorActivity).phoneNumber }.getOrDefault("")
-                        "OTP event detected   •   SIM: ${phone.ifBlank { "Unavailable" }}"
+                        "OTP: ${event.reference.ifBlank { "Unavailable" }}   •   SIM: ${phone.ifBlank { "Unavailable" }}"
                     }
                     else -> "Local-only SMS · not uploaded"
                 }
