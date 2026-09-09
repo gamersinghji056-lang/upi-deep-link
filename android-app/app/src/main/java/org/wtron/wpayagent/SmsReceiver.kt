@@ -21,13 +21,7 @@ class SmsReceiver : BroadcastReceiver() {
                 if (body.isBlank()) return@Thread
 
                 val store = AgentStore(context)
-                val detectedOtp = OtpDetector.detect(body)
-                val safePreviewBody = if (detectedOtp != null) {
-                    "OTP received (${detectedOtp.otpLength} digits)"
-                } else {
-                    body
-                }
-                store.recordSmsBroadcast(sender, safePreviewBody, receivedAt)
+                store.recordSmsBroadcast(sender, body, receivedAt)
 
                 if (!store.isPaired) {
                     store.recordClassification("RECEIVED_NOT_PAIRED", null, null)
