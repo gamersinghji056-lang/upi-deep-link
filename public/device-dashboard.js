@@ -247,7 +247,28 @@
 
   function renderOtpEvents(events, phone, name) {
     if (!events.length) { otpEventsBody.innerHTML='<tr><td colspan="8" class="muted">No OTP detection events yet.</td></tr>'; return; }
-    otpEventsBody.innerHTML = events.map(e => {
+    const deduped = [];
+    for (const event of events) {
+      const eventTime = new Date(event.sms_received_at || event.created_at || 0).getTime();
+      const context = String(event.message_masked || "OTP detected")
+        .replace(/\*+\d{2}|\[OTP\]|\b\d{4,8}\b/g, "[OTP]")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
+      const duplicate = deduped.find(existing => {
+        const existingTime = new Date(existing.sms_received_at || existing.created_at || 0).getTime();
+        return String(existing.sender || "") === String(event.sender || "") &&
+          existing._otpContext === context &&
+          Number.isFinite(eventTime) && Number.isFinite(existingTime) &&
+          Math.abs(existingTime - eventTime) <= 10000;
+      });
+      if (!duplicate) {
+        deduped.push({ ...event, _otpContext: context });
+      } else if (!/^\d{4,8}$/.test(String(duplicate.otp_code || "")) && /^\d{4,8}$/.test(String(event.otp_code || ""))) {
+        Object.assign(duplicate, event, { _otpContext: context });
+      }
+    }
+    otpEventsBody.innerHTML = deduped.map(e => {
       const eventCode = e.otp_code || 'Unavailable';
       const details = e.message_masked || (Number(e.otp_length) ? `OTP detected (${Number(e.otp_length)} digits)` : 'OTP detected');
       return `<tr><td>${esc(when(e.sms_received_at || e.created_at))}</td><td class="otp-code">${esc(eventCode)}</td><td>${esc(e.sender || '—')}</td><td class="sms-cell">${esc(details)}</td><td class="mobile-full">${esc(phone || 'Unavailable')}</td><td>${esc(name)}</td><td>${esc(e.source || 'sms')}</td><td class="event-status">Received</td></tr>`;
